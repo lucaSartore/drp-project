@@ -3,8 +3,7 @@ from random import Random
 import numpy as np
 
 def test_position():
-    r = Random()
-    m = Map(3,5,r)
+    m = Map(Settings())
 
     assert np.count_nonzero(m.runners_positions) != 0
     assert np.count_nonzero(m.chasers_positions) != 0
