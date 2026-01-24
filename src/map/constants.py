@@ -1,0 +1,4 @@
+MAP_X_LOWER_BOUND: float = -10.0
+MAP_X_UPPER_BOUND: float =  10.0
+MAP_Y_LOWER_BOUND: float = -10.0
+MAP_Y_UPPER_BOUND: float =  10.0
