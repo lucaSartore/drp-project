@@ -1,20 +1,9 @@
 from random import Random
 import numpy as np
+from display.display import Display
 from map.constants import *
 from map.data_type import Point
-from dataclasses import dataclass
-
-@dataclass
-class Settings:
-    n_chasers: int = 3
-    n_fake_runners: int = 5
-    random_seed: int | None = None
-    chaser_false_negative_probability: float = 0.5
-    chaser_false_positive_probability: float = 0.5
-    chaser_detection_radius: float = 1.5
-    runner_false_negative_probability: float = 0.5
-    runner_detection_radius: float = 1.5
-
+from map.settings import Settings
 
 class Map:
     def __init__(self, settings: Settings) -> None:
@@ -64,6 +53,14 @@ class Map:
         for fr in self.fake_runners:
             fr.step()
         return True
+
+    def draw_agents(self, display: Display):
+        display.update_left_side(
+            self.settings,
+            [x.position for x in self.chasers],
+            self.runner.position,
+            [x.position for x in self.fake_runners]
+        )
 
 class Agent:
     def __init__(
