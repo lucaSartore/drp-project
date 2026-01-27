@@ -2,3 +2,4 @@ pygame-ce
 numpy
 debugpy
 pytest
+

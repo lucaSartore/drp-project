@@ -5,6 +5,14 @@ class Point:
         self.x = x
         self.y = y
 
+    @property
+    def angle(self) -> float:
+        return math.atan2(self.y, self.x)
+
+    @property
+    def module(self) -> float:
+        return math.sqrt(self.x**2 + self.y**2)
+
     @staticmethod
     def from_polar(angle: float, radius: float) -> Point:
         x = radius * math.cos(angle)
@@ -18,9 +26,9 @@ class Point:
 
 
     def __sub__(self, other):
-        self.x -= other.x
-        self.y -= other.y
-        return self
+        x = self.x - other.x
+        y = self.y - other.y
+        return Point(x,y)
 
     def __str__(self):
         return f"Point{{x={self.x}, y={self.y}}}"
