@@ -23,4 +23,8 @@
 1) add fake runners to false positive
 2) evaluate different metrics (better more chasers with cheap sensors, or few chasers with good sensors)
 
+# sources
+
+https://www.sciencedirect.com/science/chapter/edited-volume/abs/pii/B9780128136775000067
+
 
