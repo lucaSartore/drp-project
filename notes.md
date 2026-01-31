@@ -45,3 +45,13 @@ k = num agents
 r = size of the set of approximation functions
 i = iteration of the convergence procedure
 
+
+
+# personal reminder
+
+this is really important:
+it means that we don't need to worry about the approximation being good at the edge of the map:
+
+In view of the way the local PF
+operates, the approximation does not need to be good for all possible states xn but
+only in those regions of the state space where the current particles x (m) n,k are located.
