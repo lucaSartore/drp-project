@@ -78,10 +78,12 @@ class Map:
         for r_index in np.where(close_enough):
             # detection is real runner
             if r_index == 0 and not self.random_coin_flip(self.settings.runner_false_negative_probability):
-                return self.runner.position
+                p = self.runner.position
+                return self.add_uncertainty(p)
             # detection is fake runner
             if r_index != 0 and self.random_coin_flip(self.settings.runner_false_positive_probability):
-                return self.fake_runners[r_index-1].position
+                p = self.fake_runners[r_index-1].position
+                return self.add_uncertainty(p)
         return None
 
     def detect_chaser(self, detection_point: Point) -> Point | None:
@@ -89,8 +91,17 @@ class Map:
         close_enough =  distances <= self.settings.chaser_detection_radius
         for c_index in np.where(close_enough)[0]:
             if not self.random_coin_flip(self.settings.chaser_false_negative_probability):
-                return self.chasers[c_index].position
+                p = self.chasers[c_index].position
+                return self.add_uncertainty(p)
         return None
+
+    def add_uncertainty(self, measurement: Point) -> Point:
+        v = np.random.multivariate_normal(
+            [measurement.x, measurement.y],
+            [[MEASUREMENT_STD ** 2, 0],
+             [0, MEASUREMENT_STD ** 2]]
+        )
+        return Point(v[0], v[1])
 
 class Agent:
     def __init__(

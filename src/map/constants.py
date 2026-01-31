@@ -9,3 +9,5 @@ RUNNER_VELOCITY: float = 0.05
 CHASER_VELOCITY: float = 0.05
 
 BOUNCING_RANDOMNESS: float = math.pi/32 # rad
+
+MEASUREMENT_STD: float = 0.1
