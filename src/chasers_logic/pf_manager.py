@@ -5,6 +5,7 @@ from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
 from numpy.polynomial.chebyshev import chebvander2d
+import matplotlib.pyplot as plt
 
 
 class ParticleFilterManager:
@@ -42,12 +43,16 @@ class ParticleFilterManager:
         )
 
     def _probability_of_measure(self, measure: Point | None, position: Point, particle_index: int) -> float:
+        """
+        calculate the probability of a certain measure to be made
+        given a certain particle
+        """
         particle = self._get_particle(particle_index)
 
         # the measure is null (no detection)
         if measure == None:
-            is_in_radius = (position-particle).abs() >= self.settings.chaser_detection_radius 
-            probability_real_runner = 0 if not is_in_radius else self.settings.runner_false_negative_probability
+            is_in_radius = (position-particle).abs() <= self.settings.chaser_detection_radius 
+            probability_of_measure_given_runner = 1 if not is_in_radius else self.settings.runner_false_negative_probability
 
 
             # approximation of the area covered by the radar 
@@ -64,16 +69,16 @@ class ParticleFilterManager:
                 probability_of_fake_runner_outside_radius + \
                 probability_of_fake_runner_inside_radius_but_not_detected
 
-            probability_fake_runner = probability_of_not_detection_one_fake_runner ** self.settings.n_fake_runners
+            probability_of_measure_given_fake_runner = probability_of_not_detection_one_fake_runner ** self.settings.n_fake_runners
 
             # for the measure to be None we need to:
             # not measure a real runner
             #    AND
             # not measure a fake runner
-            return probability_fake_runner * probability_real_runner
+            return probability_of_measure_given_fake_runner * probability_of_measure_given_runner
 
         # the measure has a value (there was a detection)
-        probability_real_runner = multivariate_normal.pdf(
+        probability_of_real_runner_detection = multivariate_normal.pdf(
             measure.as_numpy(),
             mean= particle.as_numpy(),
             cov= MEASUREMENT_COVARIANCE  #type: ignore
@@ -89,7 +94,7 @@ class ParticleFilterManager:
         # the probability that a real runner generated the measure
         #    PLUS
         # the probability that a fake runner generated the measure
-        return probability_real_runner + probability_of_fake_runner
+        return probability_of_real_runner_detection + probability_of_fake_runner
 
         
     def _normalize(self, points: np.typing.NDArray) -> np.typing.NDArray:
@@ -98,19 +103,20 @@ class ParticleFilterManager:
         """
         x = (points[:,0] - MAP_X_LOWER_BOUND) / (MAP_X_UPPER_BOUND - MAP_X_LOWER_BOUND) * 2 - 1
         y = (points[:,1] - MAP_Y_LOWER_BOUND) / (MAP_Y_UPPER_BOUND - MAP_Y_LOWER_BOUND) * 2 - 1
-        return np.hstack([x,y])
+        return np.vstack([x,y]).T
 
-    def _get_initial_coefficients(self, measure: Point | None, position: Point):
+    def _get_initial_coefficients(self, measure: Point | None, position: Point) -> np.typing.NDArray:
         """
         return the initial coefficients (alpha-hat in n,k) that approximate
         the PDF without relaying on other agent's measures.
         """
 
         # the log-likelihood associated with each particle
-        epsilon = np.log([
+        epsilon = [
             self._probability_of_measure(measure, position, i)
             for i in range(NUMBER_OF_PARTICLES)
-        ]).T
+        ]
+        epsilon = np.log(epsilon).T
 
         points = self._normalize(self.particles)
         # the evaluation of the Chebyshev polynomials
@@ -123,10 +129,67 @@ class ParticleFilterManager:
         )
 
         # the coefficients for the function approximation
-        alpha = np.linalg.pinv(theta).dot(epsilon)
+        # shape: [NUMBER_OF_APPROXIMATION_COEFFICIENTS]
+        x = np.linalg.pinv(theta)
+        x = np.isnan(x)
+        count = np.count_nonzero(x)
+        alpha = np.linalg.pinv(theta)@(epsilon)
+
+        return alpha
+
+    def _visualize_coefficients(self, alpha: np.typing.NDArray):
+        """
+        Visualizes the approximated log-likelihood field using the 
+        Chebyshev coefficients.
+        """
+        # 1. Create a grid of points in the map coordinate space
+        res = 100  # Resolution of the heat map
+        x_range = np.linspace(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, res)
+        y_range = np.linspace(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, res)
+        X, Y = np.meshgrid(x_range, y_range)
+
+        # 2. Normalize the grid points to the [-1, 1] range for Chebyshev evaluation
+        points_to_eval = np.vstack([X.ravel(), Y.ravel()]).T
+        normalized_points = self._normalize(points_to_eval)
+
+        # 3. Build the Vandermonde matrix for the grid
+        theta_grid = chebvander2d(
+            normalized_points[:, 0],
+            normalized_points[:, 1],
+            [CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y]
+        )
+
+        # 4. Evaluate the function (log-likelihood) at each grid point
+        # Z = Theta * alpha
+        Z = theta_grid @ alpha
+        Z = Z.reshape(res, res)
+
+        # 5. Plotting
+        plt.figure(figsize=(8, 6))
+        
+        # Display as a heatmap (exponentiated to show probability if desired)
+        # We use origin='lower' to match Cartesian coordinates
+        im = plt.imshow(
+            np.exp(Z), 
+            extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND],
+            origin='lower',
+            cmap='viridis'
+        )
+        
+        # Overlay the current particles to see how they align with the approximation
+        plt.scatter(self.particles[:, 0], self.particles[:, 1], s=1, c='red', alpha=0.5, label='Particles')
+        
+        plt.colorbar(im, label='Approximated Probability Density')
+        plt.title(f"Agent {self.agent_id} Probability Distribution Approximation")
+        plt.xlabel("X Position")
+        plt.ylabel("Y Position")
+        plt.legend()
+        plt.gca().invert_yaxis()
+        plt.show()
 
 
-    def run_iteration(self, measure: Point | None):
-        pass
+    def run_iteration(self, measure: Point | None, position: Point):
+        alpha = self._get_initial_coefficients(measure, position)
+        self._visualize_coefficients(alpha)
         
 

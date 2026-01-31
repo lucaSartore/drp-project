@@ -3,3 +3,4 @@ numpy
 debugpy
 pytest
 scipy
+matplotlib
