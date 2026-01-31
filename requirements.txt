@@ -2,4 +2,4 @@ pygame-ce
 numpy
 debugpy
 pytest
-
+scipy
