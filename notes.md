@@ -44,6 +44,7 @@ n = iteration (timestamp)
 k = num agents
 r = size of the set of approximation functions
 i = iteration of the convergence procedure
+m = number of particles
 
 
 

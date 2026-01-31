@@ -1,9 +1,10 @@
 import numpy as np
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE
-from chasers_logic.constants import NUMBER_OF_PARTICLES
+from chasers_logic.constants import NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y
 from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
+from numpy.polynomial.chebyshev import chebvander2d
 
 
 class ParticleFilterManager:
@@ -91,8 +92,41 @@ class ParticleFilterManager:
         return probability_real_runner + probability_of_fake_runner
 
         
+    def _normalize(self, points: np.typing.NDArray) -> np.typing.NDArray:
+        """
+        return the relative coordinated in the range -1, 1
+        """
+        x = (points[:,0] - MAP_X_LOWER_BOUND) / (MAP_X_UPPER_BOUND - MAP_X_LOWER_BOUND) * 2 - 1
+        y = (points[:,1] - MAP_Y_LOWER_BOUND) / (MAP_Y_UPPER_BOUND - MAP_Y_LOWER_BOUND) * 2 - 1
+        return np.hstack([x,y])
+
+    def _get_initial_coefficients(self, measure: Point | None, position: Point):
+        """
+        return the initial coefficients (alpha-hat in n,k) that approximate
+        the PDF without relaying on other agent's measures.
+        """
+
+        # the log-likelihood associated with each particle
+        epsilon = np.log([
+            self._probability_of_measure(measure, position, i)
+            for i in range(NUMBER_OF_PARTICLES)
+        ]).T
+
+        points = self._normalize(self.particles)
+        # the evaluation of the Chebyshev polynomials
+        # at every point we have particles.
+        # shape: [NUM_PARTICLES * NUMBER_OF_APPROXIMATION_COEFFICIENTS]
+        theta = chebvander2d(
+            points[:,0],
+            points[:,1],
+            [CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y]
+        )
+
+        # the coefficients for the function approximation
+        alpha = np.linalg.pinv(theta).dot(epsilon)
 
 
     def run_iteration(self, measure: Point | None):
+        pass
         
 
