@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 class Point:
     def __init__(self, x: float, y: float) -> None:
@@ -35,5 +36,8 @@ class Point:
 
     def abs(self) -> float:
         return (self.x**2 + self.y**2)**0.5
+
+    def as_numpy(self) -> np.typing.NDArray[np.float32]:
+        return np.array([self.x, self.y], dtype=np.float32)
 
 

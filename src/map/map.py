@@ -98,8 +98,7 @@ class Map:
     def add_uncertainty(self, measurement: Point) -> Point:
         v = np.random.multivariate_normal(
             [measurement.x, measurement.y],
-            [[MEASUREMENT_STD ** 2, 0],
-             [0, MEASUREMENT_STD ** 2]]
+            MEASUREMENT_COVARIANCE
         )
         return Point(v[0], v[1])
 
