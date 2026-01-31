@@ -1,8 +1,9 @@
+from itertools import product
 from typing import Callable
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE
-from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y
+from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG
 from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
@@ -113,6 +114,18 @@ class ParticleFilterManager:
         y = (points[:,1] - MAP_Y_LOWER_BOUND) / (MAP_Y_UPPER_BOUND - MAP_Y_LOWER_BOUND) * 2 - 1
         return np.vstack([x,y]).T
 
+    def _chebvander_weighted(self, points: np.typing.NDArray, weights: np.typing.NDArray):
+        chebvander = self._chebvander(points)
+        return chebvander @ weights
+
+    def _chebvander(self, points: np.typing.NDArray):
+        points = self._normalize(points)
+        return chebvander2d(
+            points[:,0],
+            points[:,1],
+            [CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y]
+        )
+
     def _get_initial_coefficients(self, measure: Point | None, position: Point) -> np.typing.NDArray:
         """
         return the initial coefficients (alpha-hat in n,k) that approximate
@@ -126,21 +139,13 @@ class ParticleFilterManager:
         ]
         epsilon = np.log(epsilon).T
 
-        points = self._normalize(self.particles)
         # the evaluation of the Chebyshev polynomials
         # at every point we have particles.
-        # shape: [NUM_PARTICLES * NUMBER_OF_APPROXIMATION_COEFFICIENTS]
-        theta = chebvander2d(
-            points[:,0],
-            points[:,1],
-            [CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y]
-        )
+        # shape: [NUM_PARTICLES, NUMBER_OF_APPROXIMATION_COEFFICIENTS]
+        theta = self._chebvander(self.particles)
 
         # the coefficients for the function approximation
         # shape: [NUMBER_OF_APPROXIMATION_COEFFICIENTS]
-        x = np.linalg.pinv(theta)
-        x = np.isnan(x)
-        count = np.count_nonzero(x)
         alpha = np.linalg.pinv(theta)@(epsilon)
 
         return alpha
@@ -150,33 +155,18 @@ class ParticleFilterManager:
         Visualizes the approximated log-likelihood field using the 
         Chebyshev coefficients.
         """
-        # 1. Create a grid of points in the map coordinate space
         res = 100  # Resolution of the heat map
         x_range = np.linspace(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, res)
         y_range = np.linspace(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, res)
         X, Y = np.meshgrid(x_range, y_range)
 
-        # 2. Normalize the grid points to the [-1, 1] range for Chebyshev evaluation
         points_to_eval = np.vstack([X.ravel(), Y.ravel()]).T
-        normalized_points = self._normalize(points_to_eval)
 
-        # 3. Build the Vandermonde matrix for the grid
-        theta_grid = chebvander2d(
-            normalized_points[:, 0],
-            normalized_points[:, 1],
-            [CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y]
-        )
-
-        # 4. Evaluate the function (log-likelihood) at each grid point
-        # Z = Theta * alpha
-        Z = theta_grid @ alpha
+        Z = self._chebvander_weighted(points_to_eval, alpha)
         Z = Z.reshape(res, res)
 
-        # 5. Plotting
         plt.figure(figsize=(8, 6))
         
-        # Display as a heatmap (exponentiated to show probability if desired)
-        # We use origin='lower' to match Cartesian coordinates
         im = plt.imshow(
             np.exp(Z), 
             extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND], #type: ignore
@@ -184,7 +174,6 @@ class ParticleFilterManager:
             cmap='viridis'
         )
         
-        # Overlay the current particles to see how they align with the approximation
         plt.scatter(self.particles[:, 0], self.particles[:, 1], s=1, c='red', alpha=0.5, label='Particles')
         
         plt.colorbar(im, label='Approximated Probability Density')
@@ -235,8 +224,6 @@ class ParticleFilterManager:
                 i,
                 zeta_current
             ))
-            # if self.agent_id == 0:
-            #     self._visualize_coefficients(zeta_current)
 
             # parameters
             messages = self._read_n_messages(self.settings.n_chasers-1, i)
@@ -246,8 +233,16 @@ class ParticleFilterManager:
 
             zeta_current = zeta_next
 
-        # if self.agent_id == 0:
-        #     self._visualize_coefficients(zeta_next)
+        if self.agent_id == 0  and DEBUG:
+            self._visualize_coefficients(zeta_next)
+
+        # update probability based on measures
+        probability = self._chebvander_weighted(self.particles, zeta_current)
+        self.weights *= probability
+
+        # normalization
+        self.weights /= np.sum(self.weights)
+
 
     def _add_to_incoming_messages(self, message: CoefficientMessage):
         self.coefficients_queue.put(message)
