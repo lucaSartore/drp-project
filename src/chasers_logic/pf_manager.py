@@ -1,11 +1,14 @@
+from typing import Callable
 import numpy as np
+from chasers_logic.messages import CoefficientMessage, MeasurementMessage
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE
-from chasers_logic.constants import NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y
+from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y
 from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
 from numpy.polynomial.chebyshev import chebvander2d
 import matplotlib.pyplot as plt
+from queue import Queue
 
 
 class ParticleFilterManager:
@@ -33,7 +36,12 @@ class ParticleFilterManager:
         shape: [NUMBER_OF_PARTICLES]
         """
 
+        self.coefficients_queue: Queue[CoefficientMessage] = Queue()
+        self.measurement_queue: Queue[MeasurementMessage] = Queue(1)
+
         self.settings = settings
+
+        self.subscribers: list[Callable[[CoefficientMessage],None]] = []
 
 
     def _get_particle(self, index: int) -> Point:
@@ -171,7 +179,7 @@ class ParticleFilterManager:
         # We use origin='lower' to match Cartesian coordinates
         im = plt.imshow(
             np.exp(Z), 
-            extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND],
+            extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND], #type: ignore
             origin='lower',
             cmap='viridis'
         )
@@ -187,9 +195,66 @@ class ParticleFilterManager:
         plt.gca().invert_yaxis()
         plt.show()
 
+    def push_measure(self, message: MeasurementMessage):
+        self.measurement_queue.put(message)
 
-    def run_iteration(self, measure: Point | None, position: Point):
+    def run(self):
+        while True:
+            message = self.measurement_queue.get()
+
+            if message.terminal:
+                return
+
+            self._run_iteration(message.measurement, message.position)
+            
+
+
+    def _read_n_messages(self, n: int, iteration: int) -> list[CoefficientMessage]:
+        to_return: list[CoefficientMessage] = []
+        for _ in range(n):
+            message = self.coefficients_queue.get()
+            assert message.iteration == iteration
+            assert message.agent_id != self.agent_id
+            to_return.append(message)
+        return to_return
+
+
+
+
+    def _run_iteration(self, measure: Point | None, position: Point):
         alpha = self._get_initial_coefficients(measure, position)
-        self._visualize_coefficients(alpha)
-        
 
+        # parameters to estimate
+        zeta_current = alpha.copy()
+        zeta_next = np.zeros_like(zeta_current)
+
+        for i in range(CONSENSUS_ITERATIONS):
+
+            self._send_message_to_subscribers(CoefficientMessage(
+                self.agent_id,
+                i,
+                zeta_current
+            ))
+            # if self.agent_id == 0:
+            #     self._visualize_coefficients(zeta_current)
+
+            # parameters
+            messages = self._read_n_messages(self.settings.n_chasers-1, i)
+
+            zeta_next = zeta_current + np.sum([x.coefficients for x in messages], axis = 0)
+            zeta_next /= self.settings.n_chasers
+
+            zeta_current = zeta_next
+
+        # if self.agent_id == 0:
+        #     self._visualize_coefficients(zeta_next)
+
+    def _add_to_incoming_messages(self, message: CoefficientMessage):
+        self.coefficients_queue.put(message)
+
+    def _send_message_to_subscribers(self, message: CoefficientMessage):
+        for s in self.subscribers:
+            s(message)
+        
+    def subscribe_to(self, other: ParticleFilterManager):
+        other.subscribers.append(self._add_to_incoming_messages)
