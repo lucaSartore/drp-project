@@ -24,3 +24,20 @@
 2) evaluate different metrics (better more chasers with cheap sensors, or few chasers with good sensors)
 
 
+# Distributed particle filter
+
+## notations
+
+x       = state
+z       = measures
+f(x|z)  = probability of state given measures
+f(x|x)  = state transition probability (with xn & xn-1)
+
+
+## Indexes
+
+n = iteration (timestamp)
+k = num agents
+r = size of the set of approximation functions
+i = iteration of the convergence procedure
+
