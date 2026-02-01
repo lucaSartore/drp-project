@@ -339,13 +339,11 @@ class ParticleFilterManager:
         p[:,1] += RUNNER_VELOCITY * np.sin(angle)
 
         # keep particles in the border
-        # p[p[:,0] < MAP_X_LOWER_BOUND] += 2 * MAP_X_LOWER_BOUND - p[p[:,0] < MAP_X_LOWER_BOUND]
-        # p[p[:,1] < MAP_Y_LOWER_BOUND] += 2 * MAP_Y_LOWER_BOUND - p[p[:,1] < MAP_Y_LOWER_BOUND]
-        # p[p[:,0] > MAP_X_UPPER_BOUND] += 2 * MAP_X_UPPER_BOUND - p[p[:,0] > MAP_X_UPPER_BOUND]
-        # p[p[:,1] > MAP_Y_UPPER_BOUND] += 2 * MAP_Y_UPPER_BOUND - p[p[:,1] > MAP_Y_UPPER_BOUND]
-        
-        p[p[:,0] < MAP_X_LOWER_BOUND] = MAP_X_LOWER_BOUND
-        p[p[:,1] < MAP_Y_LOWER_BOUND] = MAP_Y_LOWER_BOUND
-        p[p[:,0] > MAP_X_UPPER_BOUND] = MAP_X_UPPER_BOUND
-        p[p[:,1] > MAP_Y_UPPER_BOUND] = MAP_Y_UPPER_BOUND
-        self.particles = p
+        x = p[:,0]
+        y = p[:,1]
+        x[x < MAP_X_LOWER_BOUND] = 2 * MAP_X_LOWER_BOUND - x[x < MAP_X_LOWER_BOUND]
+        x[x > MAP_X_UPPER_BOUND] = 2 * MAP_X_UPPER_BOUND - x[x > MAP_X_UPPER_BOUND]
+        y[y < MAP_Y_LOWER_BOUND] = 2 * MAP_Y_LOWER_BOUND - y[y < MAP_Y_LOWER_BOUND]
+        y[y > MAP_Y_UPPER_BOUND] = 2 * MAP_Y_UPPER_BOUND - y[y > MAP_Y_UPPER_BOUND]
+        p[:,0] = x
+        p[:,1] = y
