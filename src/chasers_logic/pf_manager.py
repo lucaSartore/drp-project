@@ -235,13 +235,13 @@ class ParticleFilterManager:
         )
         
         plt.scatter(self.particles[:, 0], self.particles[:, 1], s=0.5, c='red', alpha=0.2)
-        
+        plt.gca().invert_yaxis()
+
         if show:
             plt.colorbar(im, label='Weight Density')
             plt.title(f"Agent {self.agent_id} Raw Particle Density (Weighted Histogram)")
             plt.xlabel("X Position")
             plt.ylabel("Y Position")
-            plt.gca().invert_yaxis()
             plt.show()
         else:
             # Remove all axes and labels for GUI display
@@ -323,6 +323,10 @@ class ParticleFilterManager:
         # normalization
         assert np.sum(self.weights) != 0
         self.weights /= np.sum(self.weights)
+
+        # redistribute probability to avoid getting to much confidence
+        # self.weights += 1 / NUMBER_OF_PARTICLES
+        # self.weights /= np.sum(self.weights)
 
 
     def _add_to_incoming_messages(self, message: CoefficientMessage):
