@@ -10,6 +10,7 @@ from scipy.stats import multivariate_normal
 from numpy.polynomial.chebyshev import chebvander2d
 import matplotlib.pyplot as plt
 from queue import Queue
+from scipy.stats import gaussian_kde
 
 
 class ParticleFilterManager:
@@ -116,7 +117,8 @@ class ParticleFilterManager:
 
     def _chebvander_weighted(self, points: np.typing.NDArray, weights: np.typing.NDArray):
         chebvander = self._chebvander(points)
-        return chebvander @ weights
+        results = chebvander @ weights
+        return results
 
     def _chebvander(self, points: np.typing.NDArray):
         points = self._normalize(points)
@@ -150,23 +152,21 @@ class ParticleFilterManager:
 
         return alpha
 
-    def _visualize_coefficients(self, alpha: np.typing.NDArray):
+    def _visualize_coefficients(self, alpha: np.typing.NDArray, show: bool = True):
         """
-        Visualizes the approximated log-likelihood field using the 
-        Chebyshev coefficients.
+        Visualizes the approximated log-likelihood field.
+        If show=True, displays the plot. If False, returns the image as an RGB array.
         """
-        res = 100  # Resolution of the heat map
+        res = 100
         x_range = np.linspace(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, res)
         y_range = np.linspace(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, res)
         X, Y = np.meshgrid(x_range, y_range)
 
         points_to_eval = np.vstack([X.ravel(), Y.ravel()]).T
-
         Z = self._chebvander_weighted(points_to_eval, alpha)
         Z = Z.reshape(res, res)
-
-        plt.figure(figsize=(8, 6))
         
+        fig = plt.figure(figsize=(8, 6))
         im = plt.imshow(
             np.exp(Z), 
             extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND], #type: ignore
@@ -175,14 +175,63 @@ class ParticleFilterManager:
         )
         
         plt.scatter(self.particles[:, 0], self.particles[:, 1], s=1, c='red', alpha=0.5, label='Particles')
-        
         plt.colorbar(im, label='Approximated Probability Density')
         plt.title(f"Agent {self.agent_id} Probability Distribution Approximation")
         plt.xlabel("X Position")
         plt.ylabel("Y Position")
         plt.legend()
         plt.gca().invert_yaxis()
-        plt.show()
+
+        if show:
+            plt.show()
+        else:
+            return self._canvas_to_array(fig)
+
+    def draw_pdf(self, show: bool = True):
+        """
+        Draws the PDF using a weighted 2D histogram.
+        If show=True, displays the plot. If False, returns the image as an RGB array.
+        """
+        res = 50
+        x_bins = np.linspace(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, res)
+        y_bins = np.linspace(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, res)
+
+        statistic, _, _ = np.histogram2d(
+            self.particles[:, 0], 
+            self.particles[:, 1], 
+            bins=[x_bins, y_bins], 
+            weights=self.weights,
+            density=True
+        )
+
+        fig = plt.figure(figsize=(8, 6))
+        im = plt.imshow(
+            statistic.T, 
+            extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND], #type: ignore
+            origin='lower',
+            cmap='viridis',
+            interpolation='nearest'
+        )
+        
+        plt.scatter(self.particles[:, 0], self.particles[:, 1], s=0.5, c='red', alpha=0.2)
+        plt.colorbar(im, label='Weight Density')
+        plt.title(f"Agent {self.agent_id} Raw Particle Density (Weighted Histogram)")
+        plt.xlabel("X Position")
+        plt.ylabel("Y Position")
+        plt.gca().invert_yaxis()
+
+        if show:
+            plt.show()
+        else:
+            return self._canvas_to_array(fig)
+
+    def _canvas_to_array(self, fig):
+        """Helper to convert a matplotlib figure to a RGB numpy array."""
+        fig.canvas.draw()
+        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plt.close(fig) # Clean up memory
+        return img
 
     def push_measure(self, message: MeasurementMessage):
         self.measurement_queue.put(message)
@@ -195,6 +244,9 @@ class ParticleFilterManager:
                 return
 
             self._run_iteration(message.measurement, message.position)
+
+            if self.agent_id == 0 and DEBUG:
+                self.draw_pdf()
             
 
 
@@ -237,10 +289,12 @@ class ParticleFilterManager:
             self._visualize_coefficients(zeta_next)
 
         # update probability based on measures
-        probability = self._chebvander_weighted(self.particles, zeta_current)
+        probability = np.exp(self._chebvander_weighted(self.particles, zeta_next))
+
         self.weights *= probability
 
         # normalization
+        assert np.sum(self.weights) != 0
         self.weights /= np.sum(self.weights)
 
 
