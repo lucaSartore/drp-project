@@ -74,7 +74,7 @@ class Map:
 
     def detect_runner(self, detection_point: Point) -> Point | None:
         distances = self._distance_vector(detection_point, self.runners_positions.copy())
-        close_enough =  distances <= self.settings.runner_detection_radius
+        close_enough =  distances <= self.settings.chaser_detection_radius
         for r_index in np.where(close_enough)[0]:
             # detection is real runner
             if r_index == 0 and not self.random_coin_flip(self.settings.runner_false_negative_probability):
@@ -88,7 +88,7 @@ class Map:
 
     def detect_chaser(self, detection_point: Point) -> Point | None:
         distances = self._distance_vector(detection_point, self.chasers_positions)
-        close_enough =  distances <= self.settings.chaser_detection_radius
+        close_enough =  distances <= self.settings.runner_detection_radius
         for c_index in np.where(close_enough)[0]:
             if not self.random_coin_flip(self.settings.chaser_false_negative_probability):
                 p = self.chasers[c_index].position

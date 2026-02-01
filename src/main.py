@@ -1,10 +1,7 @@
 from chasers_logic.controller import ChaserController
-from chasers_logic.messages import MeasurementMessage
-from chasers_logic.pf_manager import ParticleFilterManager
 from display.display import Display
 from map.map import Map, Settings
 from time import time, sleep
-from threading import Thread
 
 settings = Settings()
 map = Map(settings)
@@ -32,9 +29,9 @@ while map.run():
     c += 1
     if c == DISPLAY_INTERVALS:
         c = 0
-        pdf = controllers[0].get_pdf_image()
         map.draw_agents(display)
-        display.update_right_side(pdf)
+        # pdf = controllers[0].get_pdf_image()
+        # display.update_right_side(pdf)
         display.render()
         display.clear()
 

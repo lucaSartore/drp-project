@@ -1,4 +1,5 @@
 from itertools import product
+from math import dist
 from typing import Callable, Literal, overload, override
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
@@ -55,6 +56,74 @@ class ParticleFilterManager:
     def get_random_particle(self) -> Point:
         index = np.random.choice(len(self.weights), p=self.weights)
         return self._get_particle(index)
+
+    def _probability_of_not_detecting_fake_runner(self):
+        """
+        return an approximation of the probability that in any given time,
+        the measure is null given that the real runner did not cause the measure
+        """
+        # approximation of the area covered by the radar 
+        # (is approximated as we are not removing the part outside the map
+        # if the robot is close to the border)
+        covered_area = np.pi * self.settings.chaser_detection_radius ** 2
+
+        probability_of_fake_runner_outside_radius = \
+            (MAP_AREA - covered_area) / MAP_AREA
+        probability_of_fake_runner_inside_radius_but_not_detected = \
+            covered_area / MAP_AREA * (1-self.settings.runner_false_positive_probability)
+
+        probability_of_not_detection_one_fake_runner = \
+            probability_of_fake_runner_outside_radius + \
+            probability_of_fake_runner_inside_radius_but_not_detected
+
+        # the condition need to be true at the same time for all runners
+        return probability_of_not_detection_one_fake_runner ** self.settings.n_fake_runners
+
+    def _probability_of_measures(self, measure: Point | None, position: Point, points: np.typing.NDArray) -> np.typing.NDArray:
+        """
+        calculate the probability of a certain measure to be made
+        assuming each of the particle is the source
+
+        more efficient parallel version of `_probability_of_measure`
+        """
+
+        ##### case where there is not a detection #####
+        if measure == None:
+            distance = points - position.as_numpy()
+            distance = np.sqrt(np.sum(distance ** 2, axis=1))
+            is_in_radius = distance < self.settings.chaser_detection_radius
+            # if the runner is outside the radius, the probability of not detection
+            # a measure is 100%
+            probability = np.ones_like(self.weights)
+            # if the runner is in radius the probability of not seeing him
+            # is equal to the false negative probability
+            probability[is_in_radius] = self.settings.runner_false_negative_probability
+
+            # keep also track of the probability that a fake runner generates a measure
+            probability *= self._probability_of_not_detecting_fake_runner()
+
+            return probability
+
+        ##### case where there is a measure #####
+        probability_of_real_runner_detection = multivariate_normal.pdf(
+            measure.as_numpy() - points,
+            mean= [0,0],
+            cov= MEASUREMENT_COVARIANCE  #type: ignore
+        ) * (1 - self.settings.runner_false_negative_probability)
+        
+        # fake runner's probability is approximated as a uniform
+        # distribution across the map
+        probability_of_fake_runner = \
+            self.settings.n_fake_runners / MAP_AREA * \
+            self.settings.runner_false_positive_probability
+
+        # the final result is:
+        # the probability that a real runner generated the measure
+        #    PLUS
+        # the probability that a fake runner generated the measure
+        return probability_of_real_runner_detection + probability_of_fake_runner
+    
+
 
     def _probability_of_measure(self, measure: Point | None, position: Point, particle_index: int) -> float:
         """
@@ -139,10 +208,11 @@ class ParticleFilterManager:
         """
 
         # the log-likelihood associated with each particle
-        epsilon = [
-            self._probability_of_measure(measure, position, i)
-            for i in range(NUMBER_OF_PARTICLES)
-        ]
+        epsilon = self._probability_of_measures(measure, position, self.particles)
+        # epsilon = [
+        #     self._probability_of_measure(measure, position, i)
+        #     for i in range(NUMBER_OF_PARTICLES)
+        # ]
         epsilon = np.log(epsilon).T
 
         # the evaluation of the Chebyshev polynomials
