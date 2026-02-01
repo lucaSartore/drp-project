@@ -176,14 +176,28 @@ class BouncingAgent(Agent):
 class Chaser(Agent):
     def __init__(self, index: int, map: Map) -> None:
         super().__init__(map, map.chasers_positions, index)
+        self.objective = self.position
 
     def step(self) -> None:
-        pass
+        direction = self.objective - self.position
+        module = direction.module
+        if module == 0:
+            return
+        if module > CHASER_VELOCITY:
+            scaling_factor = CHASER_VELOCITY/module
+            direction.x *= scaling_factor
+            direction.y *= scaling_factor
+
+        self.position = self.position + direction
 
 class Runner(BouncingAgent):
     def __init__(self, map: Map) -> None:
         super().__init__(map, map.runners_positions, 0, RUNNER_VELOCITY)
 
+    def step(self) -> None:
+        self.position = self.position + self.speed
+        surface_normal = self.get_bouncing_surface_normal()
+        self.speed = self.reflection(surface_normal, self.speed)
 
 class FakeRunner(BouncingAgent):
     def __init__(self, index: int, map: Map) -> None:

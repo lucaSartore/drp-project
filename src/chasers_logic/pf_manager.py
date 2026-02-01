@@ -52,6 +52,10 @@ class ParticleFilterManager:
             self.particles[index,1]
         )
 
+    def get_random_particle(self) -> Point:
+        index = np.random.choice(len(self.weights), p=self.weights)
+        return self._get_particle(index)
+
     def _probability_of_measure(self, measure: Point | None, position: Point, particle_index: int) -> float:
         """
         calculate the probability of a certain measure to be made
