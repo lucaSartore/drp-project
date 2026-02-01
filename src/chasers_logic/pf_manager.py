@@ -2,7 +2,7 @@ from itertools import product
 from typing import Callable, Literal, overload, override
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
-from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE
+from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE, RUNNER_VELOCITY
 from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG
 from map.data_type import Point
 from map.map import Settings
@@ -283,9 +283,9 @@ class ParticleFilterManager:
         return to_return
 
 
-
-
     def _run_iteration(self, measure: Point | None, position: Point):
+        self._update_particles()
+
         alpha = self._get_initial_coefficients(measure, position)
 
         # parameters to estimate
@@ -330,3 +330,22 @@ class ParticleFilterManager:
         
     def subscribe_to(self, other: ParticleFilterManager):
         other.subscribers.append(self._add_to_incoming_messages)
+
+    def _update_particles(self):
+        # add a random velocity
+        angle = np.random.random(size = (NUMBER_OF_PARTICLES)) * np.pi * 2
+        p = self.particles
+        p[:,0] += RUNNER_VELOCITY * np.cos(angle)
+        p[:,1] += RUNNER_VELOCITY * np.sin(angle)
+
+        # keep particles in the border
+        # p[p[:,0] < MAP_X_LOWER_BOUND] += 2 * MAP_X_LOWER_BOUND - p[p[:,0] < MAP_X_LOWER_BOUND]
+        # p[p[:,1] < MAP_Y_LOWER_BOUND] += 2 * MAP_Y_LOWER_BOUND - p[p[:,1] < MAP_Y_LOWER_BOUND]
+        # p[p[:,0] > MAP_X_UPPER_BOUND] += 2 * MAP_X_UPPER_BOUND - p[p[:,0] > MAP_X_UPPER_BOUND]
+        # p[p[:,1] > MAP_Y_UPPER_BOUND] += 2 * MAP_Y_UPPER_BOUND - p[p[:,1] > MAP_Y_UPPER_BOUND]
+        
+        p[p[:,0] < MAP_X_LOWER_BOUND] = MAP_X_LOWER_BOUND
+        p[p[:,1] < MAP_Y_LOWER_BOUND] = MAP_Y_LOWER_BOUND
+        p[p[:,0] > MAP_X_UPPER_BOUND] = MAP_X_UPPER_BOUND
+        p[p[:,1] > MAP_Y_UPPER_BOUND] = MAP_Y_UPPER_BOUND
+        self.particles = p
