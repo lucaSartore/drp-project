@@ -8,7 +8,7 @@ from itertools import product
 
 settings = Settings()
 map = Map(settings)
-display = Display()
+display = Display(settings)
 pms = [
     ParticleFilterManager(settings.n_chasers, i, settings)
     for i in range(settings.n_chasers)
@@ -44,7 +44,9 @@ while map.run():
     c += 1
     if c == DISPLAY_INTERVALS:
         c = 0
+        pdf = pms[0].visualize_pdf(False)
         map.draw_agents(display)
+        display.update_right_side(pdf)
         display.render()
         display.clear()
 

@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Callable
+from typing import Callable, Literal, overload, override
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE
@@ -152,7 +152,13 @@ class ParticleFilterManager:
 
         return alpha
 
-    def _visualize_coefficients(self, alpha: np.typing.NDArray, show: bool = True):
+    @overload
+    def visualize_approximation_coefficients(self, alpha: np.typing.NDArray, show: Literal[True] = True):
+        pass
+    @overload
+    def visualize_approximation_coefficients(self, alpha: np.typing.NDArray, show: Literal[False]) -> np.typing.NDArray:
+        pass
+    def visualize_approximation_coefficients(self, alpha: np.typing.NDArray, show: bool = True):
         """
         Visualizes the approximated log-likelihood field.
         If show=True, displays the plot. If False, returns the image as an RGB array.
@@ -187,7 +193,13 @@ class ParticleFilterManager:
         else:
             return self._canvas_to_array(fig)
 
-    def draw_pdf(self, show: bool = True):
+    @overload
+    def visualize_pdf(self, show: Literal[True] = True) -> None:
+        pass
+    @overload
+    def visualize_pdf(self, show: Literal[False]) -> np.typing.NDArray:
+        pass
+    def visualize_pdf(self, show: bool = True):
         """
         Draws the PDF using a weighted 2D histogram.
         If show=True, displays the plot. If False, returns the image as an RGB array.
@@ -204,7 +216,12 @@ class ParticleFilterManager:
             density=True
         )
 
-        fig = plt.figure(figsize=(8, 6))
+        if show:
+            fig = plt.figure(figsize=(8, 6))
+        else:
+            # Create a squared figure with no margins for GUI display
+            fig = plt.figure(figsize=(8, 8))
+            
         im = plt.imshow(
             statistic.T, 
             extent=[MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND], #type: ignore
@@ -214,22 +231,28 @@ class ParticleFilterManager:
         )
         
         plt.scatter(self.particles[:, 0], self.particles[:, 1], s=0.5, c='red', alpha=0.2)
-        plt.colorbar(im, label='Weight Density')
-        plt.title(f"Agent {self.agent_id} Raw Particle Density (Weighted Histogram)")
-        plt.xlabel("X Position")
-        plt.ylabel("Y Position")
-        plt.gca().invert_yaxis()
-
+        
         if show:
+            plt.colorbar(im, label='Weight Density')
+            plt.title(f"Agent {self.agent_id} Raw Particle Density (Weighted Histogram)")
+            plt.xlabel("X Position")
+            plt.ylabel("Y Position")
+            plt.gca().invert_yaxis()
             plt.show()
         else:
+            # Remove all axes and labels for GUI display
+            plt.axis('off')
+            # Remove all margins and padding
+            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
             return self._canvas_to_array(fig)
 
-    def _canvas_to_array(self, fig):
+    def _canvas_to_array(self, fig) -> np.typing.NDArray:
         """Helper to convert a matplotlib figure to a RGB numpy array."""
         fig.canvas.draw()
-        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        img = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+        # removing alpha channel
+        img = img[:,:,1:]
         plt.close(fig) # Clean up memory
         return img
 
@@ -246,7 +269,7 @@ class ParticleFilterManager:
             self._run_iteration(message.measurement, message.position)
 
             if self.agent_id == 0 and DEBUG:
-                self.draw_pdf()
+                self.visualize_pdf()
             
 
 
@@ -286,7 +309,7 @@ class ParticleFilterManager:
             zeta_current = zeta_next
 
         if self.agent_id == 0  and DEBUG:
-            self._visualize_coefficients(zeta_next)
+            self.visualize_approximation_coefficients(zeta_next)
 
         # update probability based on measures
         probability = np.exp(self._chebvander_weighted(self.particles, zeta_next))

@@ -1,6 +1,13 @@
 from map.constants import MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND
 from map.data_type import Point
-import pygame 
+from typing import TYPE_CHECKING, Any
+# circular import issue...
+if TYPE_CHECKING:
+    from map.map import Settings
+else:
+    Settings = Any
+import pygame
+import numpy as np 
 
 
 class Display:
@@ -22,12 +29,13 @@ class Display:
     ENTITY_RADIUS = 5
     VISION_ALPHA = 100
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings) -> None:
         """Initialize pygame display with two side-by-side maps."""
         pygame.init()
         self.screen = pygame.display.set_mode((self.WINDOW_WIDTH, self.WINDOW_HEIGHT))
         pygame.display.set_caption("Map Visualization")
         self.clock = pygame.time.Clock()
+        self.num_chasers = settings.n_chasers
         
         # Calculate dimensions for each side
         self.side_width = (self.WINDOW_WIDTH - 3 * self.PADDING) // 2
@@ -110,10 +118,49 @@ class Display:
         for fake_runner in fake_runners:
             self._draw_entity(fake_runner, self.left_x, self.left_y, self.FAKE_RUNNER_COLOR)
 
-    def update_right_side(self):
-        """Still to implement."""
+    def update_right_side(self, image: np.ndarray):
+        """
+        Display an image on the right side of the display.
+        
+        Args:
+            image: A numpy ndarray representing the image to display.
+                   Should be in shape (height, width) for grayscale or 
+                   (height, width, 3) for RGB.
+        """
+        # Ensure image is in the correct format
+        if image.dtype != np.uint8:
+            # Convert to uint8 if needed
+            image = np.clip(image, 0, 255).astype(np.uint8)
+        
+        # Handle grayscale images by converting to RGB
+        if len(image.shape) == 2:
+            image = np.stack([image] * 3, axis=2)
+        
+        # Resize image to fit the right side rectangle
+        height, width = image.shape[:2]
+        
+        # Calculate scaling to fit within the rectangle while maintaining aspect ratio
+        scale_x = self.side_width / width
+        scale_y = self.side_height / height
+        scale = min(scale_x, scale_y)
+        
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        
+        # Resize using pygame's transform
+        image_rgb = np.transpose(image, (1, 0, 2))  # Convert from (H, W, C) to (W, H, C)
+        surf = pygame.surfarray.make_surface(image_rgb)
+        surf = pygame.transform.scale(surf, (new_width, new_height))
+        
+        # Calculate position to center the image within the rectangle
+        x_offset = self.right_x + (self.side_width - new_width) // 2
+        y_offset = self.right_y + (self.side_height - new_height) // 2
+        
         # Draw map boundary for right side
         self._draw_map_area(self.right_x, self.right_y)
+        
+        # Blit the image onto the screen
+        self.screen.blit(surf, (x_offset, y_offset))
 
     def render(self):
         """Update the display."""
