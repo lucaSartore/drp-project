@@ -9,6 +9,7 @@ from scipy.stats import multivariate_normal
 from numpy.polynomial.chebyshev import chebvander2d
 import matplotlib.pyplot as plt
 from queue import Queue
+from threading import Lock
 
 
 class ParticleFilterManager:
@@ -38,6 +39,9 @@ class ParticleFilterManager:
         self.settings = settings
 
         self.subscribers: list[Callable[[CoefficientMessage],None]] = []
+
+        self.output_particles = self.particles.copy()
+        self.output_lock = Lock()
 
     def _get_random_particles(self, count: int) -> np.typing.NDArray:
         particles = np.zeros(shape=(count, 2), dtype=np.float32)
@@ -408,6 +412,7 @@ class ParticleFilterManager:
         assert not any(np.isnan(self.weights))
 
         self._resampling()
+        self._write_output()
 
     def _resampling(self):
         to_resample = NUMBER_OF_PARTICLES - NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY
@@ -447,3 +452,14 @@ class ParticleFilterManager:
         p[:,1] = y
 
         self.particles = p
+
+
+    def read_output(self):
+        with self.output_lock:
+            return self.output_particles
+
+    def _write_output(self):
+        with self.output_lock:
+            to_export = NUMBER_OF_PARTICLES - NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY
+            self.output_particles = self.particles.copy()[:to_export]
+

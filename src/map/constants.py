@@ -21,7 +21,7 @@ MEASUREMENT_COVARIANCE = np.array(
     dtype=np.float32
 )
 
-PARTICLE_UPDATE_COVARIANCE = 3 * np.array(
+PARTICLE_UPDATE_COVARIANCE = 5 * np.array(
     [[RUNNER_VELOCITY ** 2, 0],
      [0, RUNNER_VELOCITY ** 2]],
     dtype=np.float32
