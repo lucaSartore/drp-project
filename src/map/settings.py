@@ -9,6 +9,6 @@ class Settings:
     chaser_detection_radius: float = 4.0
     runner_false_negative_probability: float = 0.25
     runner_false_positive_probability: float = 0.25
-    runner_detection_radius: float = 3.0
+    runner_detection_radius: float = 4.0
 
 

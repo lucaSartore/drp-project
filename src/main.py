@@ -16,7 +16,7 @@ ChaserController.start_threads(controllers)
 
 UPDATE_PERIOD = 0.01 #s
 DISPLAY_INTERVALS = 5
-CONTROL_INTERVALS = 5
+CONTROL_INTERVALS = 2
 
 count_d = 0
 count_c = 0
@@ -44,6 +44,4 @@ while map.run():
     time_to_sleep = UPDATE_PERIOD - (time()-t1)
     if time_to_sleep > 0:
         sleep(time_to_sleep)
-    else:
-        print("warning: time-step to slow for simulation")
 
