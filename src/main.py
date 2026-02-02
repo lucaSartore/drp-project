@@ -16,19 +16,25 @@ ChaserController.start_threads(controllers)
 
 UPDATE_PERIOD = 0.01 #s
 DISPLAY_INTERVALS = 5
+CONTROL_INTERVALS = 5
 
-c = 0
+count_d = 0
+count_c = 0
 
 
 while map.run():
     t1 = time()
 
-    for controller in controllers:
-        controller.control_loop(map)
+    count_d += 1
+    count_c += 1
 
-    c += 1
-    if c == DISPLAY_INTERVALS:
-        c = 0
+    if count_c == CONTROL_INTERVALS:
+        for controller in controllers:
+            controller.control_loop(map)
+            count_c = 0
+
+    if count_d == DISPLAY_INTERVALS:
+        count_d = 0
         map.draw_agents(display)
         pdf = controllers[0].get_pdf_image()
         display.update_right_side(pdf)
