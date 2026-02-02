@@ -2,7 +2,7 @@ from typing import Callable, Literal, overload
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE, RUNNER_VELOCITY, PARTICLE_UPDATE_COVARIANCE
-from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG, NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY, WEIGHTS_TO_ASSIGN_TO_RANDOMLY_SAMPLED_PARTICLES
+from chasers_logic.constants import CONSENSUS_ITERATIONS, EXTRA_PARTICLE_BORDER_DISTANCE, NUM_EXTRA_PARTICLES_PER_SIDE, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG, NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY, WEIGHTS_TO_ASSIGN_TO_RANDOMLY_SAMPLED_PARTICLES
 from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
@@ -42,6 +42,7 @@ class ParticleFilterManager:
 
         self.output_particles = self.particles.copy()
         self.output_lock = Lock()
+        self.extra_particles = self._get_extra_particles()
 
     def _get_random_particles(self, count: int) -> np.typing.NDArray:
         particles = np.zeros(shape=(count, 2), dtype=np.float32)
@@ -49,6 +50,51 @@ class ParticleFilterManager:
         particles[:,0] = rand(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND)
         particles[:,1] = rand(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND)
         return particles
+
+
+    def _get_extra_particles(self):
+        """
+        return extra particle that are added when finding the coefficients of 
+        the chebyshev approximator.
+        These are added outside the boundry of the map and they allow the solution
+        to be more precise around the edges avoiding the creation of "ghosts"
+        """
+        range_x = np.linspace(
+            MAP_X_LOWER_BOUND,
+            MAP_X_UPPER_BOUND,
+            NUM_EXTRA_PARTICLES_PER_SIDE
+        )
+        range_y = np.linspace(
+            MAP_Y_LOWER_BOUND,
+            MAP_Y_UPPER_BOUND,
+            NUM_EXTRA_PARTICLES_PER_SIDE
+        )
+
+        template = np.zeros((NUM_EXTRA_PARTICLES_PER_SIDE,2), dtype=np.float32)
+
+        particles_top = np.zeros_like(template)
+        particles_top[:,0] = range_x
+        particles_top[:,1] = MAP_Y_UPPER_BOUND + EXTRA_PARTICLE_BORDER_DISTANCE
+
+        particles_bottom = np.zeros_like(template)
+        particles_bottom[:,0] = range_x
+        particles_bottom[:,1] = MAP_Y_LOWER_BOUND - EXTRA_PARTICLE_BORDER_DISTANCE
+
+        particles_left = np.zeros_like(template)
+        particles_left[:,1] = range_y
+        particles_left[:,0] = MAP_X_LOWER_BOUND - EXTRA_PARTICLE_BORDER_DISTANCE
+
+        particles_right = np.zeros_like(template)
+        particles_right[:,1] = range_y
+        particles_right[:,0] = MAP_X_UPPER_BOUND + EXTRA_PARTICLE_BORDER_DISTANCE
+
+
+        return np.vstack([
+            particles_top,
+            particles_bottom,
+            particles_left,
+            particles_right
+        ])
 
 
     def _get_particle(self, index: int) -> Point:
@@ -98,7 +144,7 @@ class ParticleFilterManager:
             is_in_radius = distance < self.settings.chaser_detection_radius
             # if the runner is outside the radius, the probability of not detection
             # a measure is 100%
-            probability = np.ones_like(self.weights)
+            probability = np.ones_like(points[:,0])
             # if the runner is in radius the probability of not seeing him
             # is equal to the false negative probability
             probability[is_in_radius] = self.settings.runner_false_negative_probability
@@ -211,8 +257,10 @@ class ParticleFilterManager:
         the PDF without relaying on other agent's measures.
         """
 
+        samples = np.vstack([self.particles, self.extra_particles])
+
         # the log-likelihood associated with each particle
-        epsilon = self._probability_of_measures(measure, position, self.particles)
+        epsilon = self._probability_of_measures(measure, position, samples)
         # epsilon = [
         #     self._probability_of_measure(measure, position, i)
         #     for i in range(NUMBER_OF_PARTICLES)
@@ -222,7 +270,7 @@ class ParticleFilterManager:
         # the evaluation of the Chebyshev polynomials
         # at every point we have particles.
         # shape: [NUM_PARTICLES, NUMBER_OF_APPROXIMATION_COEFFICIENTS]
-        theta = self._chebvander(self.particles)
+        theta = self._chebvander(samples)
 
         # the coefficients for the function approximation
         # shape: [NUMBER_OF_APPROXIMATION_COEFFICIENTS]
