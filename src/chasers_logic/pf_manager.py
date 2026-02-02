@@ -1,17 +1,14 @@
-from itertools import product
-from math import dist
-from typing import Callable, Literal, overload, override
+from typing import Callable, Literal, overload
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
 from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE, RUNNER_VELOCITY, PARTICLE_UPDATE_COVARIANCE
-from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG
+from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG, NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY, WEIGHTS_TO_ASSIGN_TO_RANDOMLY_SAMPLED_PARTICLES
 from map.data_type import Point
 from map.map import Settings
 from scipy.stats import multivariate_normal
 from numpy.polynomial.chebyshev import chebvander2d
 import matplotlib.pyplot as plt
 from queue import Queue
-from scipy.stats import gaussian_kde
 
 
 class ParticleFilterManager:
@@ -23,15 +20,11 @@ class ParticleFilterManager:
     ) -> None:
         self.number_of_agents = number_of_agents
         self.agent_id = agent_id
-        self.particles = np.zeros(shape=(NUMBER_OF_PARTICLES, 2), dtype=np.float32)
+        self.particles = self._get_random_particles(NUMBER_OF_PARTICLES)
         """
         particles in the particle filters
         shape: [NUMBER_OF_PARTICLES, 2] (where 2 is x,y)
         """
-
-        rand = lambda lb, ub: np.random.random(NUMBER_OF_PARTICLES) * (ub - lb) + lb
-        self.particles[:,0] = rand(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND)
-        self.particles[:,1] = rand(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND)
 
         self.weights = np.ones(shape=(NUMBER_OF_PARTICLES), dtype=np.float32) * 1/NUMBER_OF_PARTICLES
         """
@@ -45,6 +38,13 @@ class ParticleFilterManager:
         self.settings = settings
 
         self.subscribers: list[Callable[[CoefficientMessage],None]] = []
+
+    def _get_random_particles(self, count: int) -> np.typing.NDArray:
+        particles = np.zeros(shape=(count, 2), dtype=np.float32)
+        rand = lambda lb, ub: np.random.random(count) * (ub - lb) + lb
+        particles[:,0] = rand(MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND)
+        particles[:,1] = rand(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND)
+        return particles
 
 
     def _get_particle(self, index: int) -> Point:
@@ -389,9 +389,14 @@ class ParticleFilterManager:
         probability = np.exp(self._chebvander_weighted(self.particles, zeta_next))
 
         assert not any(np.isnan(probability))
+        # assert not all(probability >= 0)
+        # assert not all(probability <= 1)
+        probability = np.clip(probability,0,1)
+        # print(probability[probability>1])
+        # print(probability[probability<0])
 
-        self.weights *= self._probability_of_measures(measure, position, self.particles)
-        # self.weights *= probability
+        # self.weights *= self._probability_of_measures(measure, position, self.particles)
+        self.weights *= probability
 
 
         # normalization
@@ -401,10 +406,20 @@ class ParticleFilterManager:
 
 
         assert not any(np.isnan(self.weights))
+
+        self._resampling()
+
+    def _resampling(self):
+        to_resample = NUMBER_OF_PARTICLES - NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY
         # resampling
-        indices = np.random.choice(np.arange(NUMBER_OF_PARTICLES), size=NUMBER_OF_PARTICLES, p=self.weights)
-        self.particles = self.particles[indices]
-        self.weights[:] = 1/NUMBER_OF_PARTICLES
+        indices = np.random.choice(np.arange(NUMBER_OF_PARTICLES), size=to_resample, p=self.weights)
+
+        resampled_particles = self.particles[indices]
+        random_particles = self._get_random_particles(NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY)
+
+        self.particles = np.vstack([resampled_particles, random_particles])
+        self.weights[:to_resample] = (1-WEIGHTS_TO_ASSIGN_TO_RANDOMLY_SAMPLED_PARTICLES)/to_resample
+        self.weights[to_resample:] = (WEIGHTS_TO_ASSIGN_TO_RANDOMLY_SAMPLED_PARTICLES)/NUMBER_OF_PARTICLES_TO_RESAMPLE_RANDOMLY
 
     def _add_to_incoming_messages(self, message: CoefficientMessage):
         self.coefficients_queue.put(message)
