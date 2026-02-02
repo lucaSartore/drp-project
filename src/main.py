@@ -30,8 +30,8 @@ while map.run():
     if c == DISPLAY_INTERVALS:
         c = 0
         map.draw_agents(display)
-        # pdf = controllers[0].get_pdf_image()
-        # display.update_right_side(pdf)
+        pdf = controllers[0].get_pdf_image()
+        display.update_right_side(pdf)
         display.render()
         display.clear()
 

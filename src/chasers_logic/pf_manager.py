@@ -3,7 +3,7 @@ from math import dist
 from typing import Callable, Literal, overload, override
 import numpy as np
 from chasers_logic.messages import CoefficientMessage, MeasurementMessage
-from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE, RUNNER_VELOCITY
+from map.constants import MAP_AREA, MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND, MEASUREMENT_COVARIANCE, RUNNER_VELOCITY, PARTICLE_UPDATE_COVARIANCE
 from chasers_logic.constants import CONSENSUS_ITERATIONS, NUMBER_OF_PARTICLES, CHEBYSHEV_ORDER_X, CHEBYSHEV_ORDER_Y, DEBUG
 from map.data_type import Point
 from map.map import Settings
@@ -388,16 +388,23 @@ class ParticleFilterManager:
         # update probability based on measures
         probability = np.exp(self._chebvander_weighted(self.particles, zeta_next))
 
-        self.weights *= probability
+        assert not any(np.isnan(probability))
+
+        self.weights *= self._probability_of_measures(measure, position, self.particles)
+        # self.weights *= probability
+
 
         # normalization
-        assert np.sum(self.weights) != 0
-        self.weights /= np.sum(self.weights)
+        sum = np.sum(self.weights)
+        assert sum != 0
+        self.weights /= sum
 
-        # redistribute probability to avoid getting to much confidence
-        # self.weights += 1 / NUMBER_OF_PARTICLES
-        # self.weights /= np.sum(self.weights)
 
+        assert not any(np.isnan(self.weights))
+        # resampling
+        indices = np.random.choice(np.arange(NUMBER_OF_PARTICLES), size=NUMBER_OF_PARTICLES, p=self.weights)
+        self.particles = self.particles[indices]
+        self.weights[:] = 1/NUMBER_OF_PARTICLES
 
     def _add_to_incoming_messages(self, message: CoefficientMessage):
         self.coefficients_queue.put(message)
@@ -411,10 +418,8 @@ class ParticleFilterManager:
 
     def _update_particles(self):
         # add a random velocity
-        angle = np.random.random(size = (NUMBER_OF_PARTICLES)) * np.pi * 2
-        p = self.particles
-        p[:,0] += RUNNER_VELOCITY * np.cos(angle)
-        p[:,1] += RUNNER_VELOCITY * np.sin(angle)
+        displacement = np.random.multivariate_normal(mean=[0,0], cov = PARTICLE_UPDATE_COVARIANCE, size = NUMBER_OF_PARTICLES)
+        p = self.particles + displacement
 
         # keep particles in the border
         x = p[:,0]
@@ -425,3 +430,5 @@ class ParticleFilterManager:
         y[y > MAP_Y_UPPER_BOUND] = 2 * MAP_Y_UPPER_BOUND - y[y > MAP_Y_UPPER_BOUND]
         p[:,0] = x
         p[:,1] = y
+
+        self.particles = p
