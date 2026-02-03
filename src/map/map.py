@@ -1,6 +1,6 @@
 from random import Random
-from typing import Literal
 import numpy as np
+from chasers_logic.constants import MIN_DISTANCE_FOR_VALID_CATCH
 from display.display import Display
 from map.constants import *
 from map.data_type import Point
@@ -39,6 +39,14 @@ class Map:
     def random_angle(self) -> float:
         return self.random(0, 2*np.pi)
 
+    def runner_visible(self) -> bool:
+        d = self._distance_vector(self.runner.position, self.chasers_positions)
+        return bool(np.min(d) <= self.settings.chaser_detection_radius)
+
+    def is_catch(self) -> bool:
+        d = self._distance_vector(self.runner.position, self.chasers_positions)
+        return bool(np.min(d) <= MIN_DISTANCE_FOR_VALID_CATCH)
+
     def random_position(self) -> Point:
         x = self.random(MAP_X_LOWER_BOUND, MAP_Y_UPPER_BOUND)
         y = self.random(MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND)
@@ -53,7 +61,7 @@ class Map:
             c.step()
         for fr in self.fake_runners:
             fr.step()
-        return True
+        return not self.is_catch()
 
     def draw_agents(self, display: Display):
         display.update_left_side(
