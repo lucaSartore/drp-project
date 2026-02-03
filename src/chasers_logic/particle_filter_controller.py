@@ -1,15 +1,16 @@
 from math import dist
 from threading import Thread
 import sys
+from chasers_logic.icontroller import IController
 from map.map import Settings, Map
 from map.data_type import Point
 from chasers_logic.pf_manager import ParticleFilterManager
 from chasers_logic.messages import MeasurementMessage
 from itertools import product
 import numpy as np
-import random
+from typing import Self
 
-class ChaserController:
+class ParticleFilterController(IController):
     RADIUS_FOR_SEARCH_LOOP = 3.0
     SEARCH_LOOP_DISENGAGEMENT_THRESHOLD = 0.5
     STD_THRESHOLD_FOR_CHASING = 1.0
@@ -29,6 +30,10 @@ class ChaserController:
         self.pfm = ParticleFilterManager(number_of_agents, agent_id, settings)
         self.objective = Point(0,0)
         self.num_particle_around_objective = sys.maxsize
+
+    @classmethod
+    def build(cls, number_of_agents: int, agent_id: int, settings: Settings) -> Self:
+        return cls(number_of_agents, agent_id, settings)
 
 
     def get_pdf_image(self):
@@ -66,10 +71,10 @@ class ChaserController:
         finding the agents is high
         """
         distance = self._distances(particles, self.objective)
-        in_radius = distance < ChaserController.RADIUS_FOR_SEARCH_LOOP
+        in_radius = distance < ParticleFilterController.RADIUS_FOR_SEARCH_LOOP
         counter = np.count_nonzero(in_radius)
 
-        if counter < ChaserController.SEARCH_LOOP_DISENGAGEMENT_THRESHOLD * self.num_particle_around_objective:
+        if counter < ParticleFilterController.SEARCH_LOOP_DISENGAGEMENT_THRESHOLD * self.num_particle_around_objective:
             return self._search_mode_disengagement(particles, position)
         else:
             return self._search_mode_continuation(particles[in_radius])
@@ -84,7 +89,7 @@ class ChaserController:
         # set the particle as the next objective
         objective = Point(particles[index,0], particles[index,1])
         distance = self._distances(particles, objective)
-        in_radius = distance < ChaserController.RADIUS_FOR_SEARCH_LOOP
+        in_radius = distance < ParticleFilterController.RADIUS_FOR_SEARCH_LOOP
         counter = np.count_nonzero(in_radius)
 
         self.objective = objective
@@ -102,7 +107,7 @@ class ChaserController:
         mean = np.mean(particles,axis=0)
         distance = self._distances(particles, mean)
         std = float(np.std(distance))
-        return std < ChaserController.STD_THRESHOLD_FOR_CHASING
+        return std < ParticleFilterController.STD_THRESHOLD_FOR_CHASING
 
     def _distances(self, particles: np.typing.NDArray, center: Point | np.typing.NDArray) -> np.typing.NDArray:
         if type(center) == Point:
@@ -111,15 +116,18 @@ class ChaserController:
         distance = np.sqrt(np.sum(diff ** 2, axis=1))
         return distance
 
-    @staticmethod
-    def subscribe_to_each_other(controllers: list[ChaserController]):
+    @classmethod
+    def subscribe_to_each_other(cls, controllers: list[IController]):
         for (a,b) in product(controllers, controllers):
+            assert type(a) == ParticleFilterController
+            assert type(b) == ParticleFilterController
             if a.pfm.agent_id != b.pfm.agent_id:
                 a.pfm.subscribe_to(b.pfm)
 
-    @staticmethod
-    def start_threads(controllers: list[ChaserController]):
+    @classmethod
+    def start_threads(cls, controllers: list[IController]):
         for c in controllers:
+            assert type(c) == ParticleFilterController
             Thread(target= c.pfm.run).start()
 
 
