@@ -35,8 +35,8 @@ class GaussianManager:
         """
         estimated position (x hat) of the kalman filter
         """
-        self.P = np.asarray([[1000,0],
-                             [0,1000]], dtype=np.float32)
+        self.P = np.asarray([[100,0],
+                             [0,100]], dtype=np.float32)
         """
         error covariance matrix of the current estimate
         """
@@ -140,8 +140,8 @@ class GaussianManager:
             
         ##################    update step     #######################
 
-        F = F * self.number_of_agents * (1-self.settings.runner_false_positive_probability)
-        a = a * self.number_of_agents * (1-self.settings.runner_false_positive_probability)
+        F = F * self.number_of_agents
+        a = a * self.number_of_agents
 
         self.P = np.linalg.inv(np.linalg.inv(p_next_prior) + F)
         self.x_hat = self.P @ (

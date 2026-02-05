@@ -15,7 +15,7 @@ from typing import Self
 from scipy.stats import multivariate_normal
 
 class GaussianController(IController):
-    VAR_THRESHOLD_FOR_CHASING = 1.0
+    VAR_THRESHOLD_FOR_CHASING = 2.5
     SEARCH_LOOP_DISENGAGEMENT_THRESHOLD = 0.5
 
     def __init__(
@@ -80,7 +80,6 @@ class GaussianController(IController):
 
     def _search_mode_disengagement(self, pos: Point, cov: np.typing.NDArray) -> Point:
         new_target = np.random.multivariate_normal(pos.as_numpy(), cov, (1,))
-        print(new_target)
         prob_in_target = multivariate_normal.pdf(new_target, mean=pos.as_numpy(), cov=cov) #type: ignore
 
         new_target_point = Point(new_target[0,0], new_target[0,1])
@@ -92,8 +91,7 @@ class GaussianController(IController):
 
 
     def _search_mode_continuation(self, pos: Point, cov: np.typing.NDArray) -> Point:
-        self.objective = pos
-        return pos
+        return self.objective
 
     def _is_chasing_mode(self, cov: np.typing.NDArray) -> bool:
         return cov[0,0] < GaussianController.VAR_THRESHOLD_FOR_CHASING and \
