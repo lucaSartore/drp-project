@@ -35,8 +35,8 @@ class GaussianManager:
         """
         estimated position (x hat) of the kalman filter
         """
-        self.P = np.asarray([[25,0],
-                             [0,25]], dtype=np.float32)
+        self.P = np.asarray([[1000,0],
+                             [0,1000]], dtype=np.float32)
         """
         error covariance matrix of the current estimate
         """

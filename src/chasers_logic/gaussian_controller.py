@@ -4,6 +4,7 @@ from threading import Thread
 import sys
 from chasers_logic.gaussian_manager import GaussianManager
 from chasers_logic.icontroller import IController
+from map.constants import MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND, MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND
 from map.map import Settings, Map
 from map.data_type import Point
 from chasers_logic.pf_manager import ParticleFilterManager
@@ -70,16 +71,21 @@ class GaussianController(IController):
         """
         prob_in_target = multivariate_normal.pdf(self.objective.as_numpy(), mean=pos.as_numpy(), cov=cov) #type: ignore
 
-        if prob_in_target < GaussianController.SEARCH_LOOP_DISENGAGEMENT_THRESHOLD * self.probability_of_objective:
+        disengage_because_of_probability = prob_in_target < GaussianController.SEARCH_LOOP_DISENGAGEMENT_THRESHOLD * self.probability_of_objective
+        disengage_because_of_reached_point = (position - self.objective).abs() < 0.1
+        if disengage_because_of_probability or disengage_because_of_reached_point:
             return self._search_mode_disengagement(pos, cov)
         else:
             return self._search_mode_continuation(pos, cov)
 
     def _search_mode_disengagement(self, pos: Point, cov: np.typing.NDArray) -> Point:
         new_target = np.random.multivariate_normal(pos.as_numpy(), cov, (1,))
+        print(new_target)
         prob_in_target = multivariate_normal.pdf(new_target, mean=pos.as_numpy(), cov=cov) #type: ignore
 
         new_target_point = Point(new_target[0,0], new_target[0,1])
+        new_target_point.x = np.clip(new_target_point.x,MAP_X_LOWER_BOUND, MAP_X_UPPER_BOUND)
+        new_target_point.y = np.clip(new_target_point.y,MAP_Y_LOWER_BOUND, MAP_Y_UPPER_BOUND)
         self.objective = new_target_point
         self.probability_of_objective = prob_in_target
         return new_target_point
