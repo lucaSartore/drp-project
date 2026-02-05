@@ -20,6 +20,13 @@ class CoefficientMessage:
     coefficients of the agent.
     shape: [num_approx_functions]
     """
+
+@dataclass
+class DistributedKalmanFilterMessage:
+    agent_id: int
+    iteration: int
+    a: np.typing.NDArray
+    F: np.typing.NDArray
     
 @dataclass
 class MeasurementMessage:

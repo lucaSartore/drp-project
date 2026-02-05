@@ -20,15 +20,21 @@ class Point:
         y = radius * math.sin(angle)
         return Point(x,y)
 
-    def __add__(self, other):
+
+    def __add__(self, other: Point):
         x = self.x + other.x
         y = self.y + other.y
         return Point(x,y)
 
 
-    def __sub__(self, other):
+    def __sub__(self, other: Point):
         x = self.x - other.x
         y = self.y - other.y
+        return Point(x,y)
+
+    def __truediv__(self, n: float | int):
+        x = self.x / n
+        y = self.y / n
         return Point(x,y)
 
     def __str__(self):

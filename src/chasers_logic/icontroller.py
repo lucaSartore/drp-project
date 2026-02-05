@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from map.map import Map
 from typing import Self
 from map.settings import Settings
+import numpy as np
 
 class IController(ABC):
 
@@ -28,3 +29,5 @@ class IController(ABC):
         pass
 
 
+    def get_pdf_image(self) -> np.typing.NDArray | None:
+        return None

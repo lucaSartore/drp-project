@@ -8,8 +8,8 @@ from map.map import Map, Settings
 from time import time, sleep
 
 def main():
-    # run_test("baseline")
-    # return
+    run_test("gaussian")
+    return
     for c in ["baseline", "particle_filter"]:
         for i in range(10):
             settings = Settings()
@@ -68,8 +68,8 @@ def run_test(
             assert display != None
             map.draw_agents(display)
             c0 = controllers[0]
-            if type(c0) == ParticleFilterController:
-                pdf = c0.get_pdf_image()
+            pdf = c0.get_pdf_image()
+            if pdf is not None:
                 display.update_right_side(pdf)
             display.render()
             display.clear()
