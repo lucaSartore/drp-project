@@ -7,6 +7,8 @@ from display.display import Display
 from map.map import Map, Settings
 from time import time, sleep
 import argparse
+import csv
+import os
 
 MAX_ITERATION = 2500
 
@@ -22,6 +24,10 @@ def get_args():
     parser.add_argument("--no-seed", action="store_false", dest="fix_seed", 
                         help="Do not fix the random seed (default: seed is fixed)")
     parser.set_defaults(fix_seed=True)
+
+    parser.add_argument("--no-logs", action="store_false", dest="save_logs",
+                        help="Disable saving results to results.csv (default: logs are saved)")
+    parser.set_defaults(save_logs=True)
 
     # Numeric options
     parser.add_argument("--runners", type=int, default=4, help="Number of fake runners")
@@ -42,6 +48,16 @@ def get_args():
 def main():
     args = get_args()
 
+    # Initialize CSV file if logging is enabled
+    csv_file = None
+    csv_writer = None
+    if args.save_logs:
+        file_exists = os.path.exists("results.csv")
+        csv_file = open("results.csv", "a", newline="")
+        csv_writer = csv.DictWriter(csv_file, fieldnames=["controller", "iteration", "time_to_catch", "time_to_first_contact"])
+        if not file_exists:
+            csv_writer.writeheader()
+
     # The arguments are now accessible via args.<name>
     for o in args.testcases:
         for i in range(args.reps):
@@ -58,6 +74,21 @@ def main():
             
             print(f"controller={o} iteration={i} time_to_catch={time_to_catch} "
                   f"time_to_first_contact={time_to_first_contact}")
+            
+            # Save to CSV if logging is enabled
+            if args.save_logs and csv_writer:
+                assert csv_file != None
+                csv_writer.writerow({
+                    "controller": o,
+                    "iteration": i,
+                    "time_to_catch": time_to_catch,
+                    "time_to_first_contact": time_to_first_contact
+                })
+                csv_file.flush()
+
+    # Close CSV file if it was opened
+    if csv_file:
+        csv_file.close()
 
 def run_test(
     controller: test_options,

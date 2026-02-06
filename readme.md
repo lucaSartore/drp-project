@@ -31,10 +31,10 @@ The CLI (Command Line Interface) provides a bridge between the simulation logic 
 
 The tool supports four types of inputs:
 
-* **Flags:** Toggles like `--display` (defaults to `False`) and `--no-seed` (defaults to `True`).
+* **Flags:** Toggles like `--display` (defaults to `False`), `--no-seed` (defaults to `True`), and `--no-logs` (defaults to saving results).
 * **Integers:** Parameters for the environment like `--runners`, `--chasers`, and `--reps`.
 * **Strings/Lists:** The `--testcases` argument accepts one or more of the valid controllers: `baseline`, `gaussian`, or `particle_filter`.
-* **Help:** You can always run `python main.py --help` to see the full list of available commands and their default values.
+* **Help:** You can always run `python src/main.py --help` to see the full list of available commands and their default values.
 
 ---
 
@@ -45,11 +45,9 @@ For high-confidence data collection, you should run all controllers over a large
 To run the full suite with **100 repetitions** per test case:
 
 ```bash
-python main.py --testcases baseline gaussian particle_filter --reps 100
+python src/main.py --testcases baseline gaussian particle_filter --reps 100
 
 ```
-
-**Note:** Since `--display` defaults to `False` and `fix_seed` defaults to `True`, you do not need to specify those flags for this command.
 
 ---
 
@@ -60,13 +58,6 @@ Manual benchmarking is useful for "sanity checking" a specific controller's beha
 To run a single **visual test** of the `particle_filter`:
 
 ```bash
-python main.py --testcases particle_filter --reps 1 --display --no-seed
+python src/main.py --testcases particle_filter --reps 1 --display --no-seed --no-logs
 
 ```
-
-| Parameter | Value | Description |
-| --- | --- | --- |
-| `--testcases` | `particle_filter` | Isolates a single controller. |
-| `--reps` | `1` | Runs only one iteration. |
-| `--display` | Enabled | Opens the GUI window to watch the simulation. |
-| `--no-seed` | Disabled | Uses a non-deterministic seed for varied results. |
