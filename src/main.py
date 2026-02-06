@@ -6,19 +6,61 @@ from chasers_logic.particle_filter_controller import ParticleFilterController
 from display.display import Display
 from map.map import Map, Settings
 from time import time, sleep
+import argparse
+
+MAX_ITERATION = 2500
+
+type test_options = Literal["baseline", "gaussian", "particle_filter"]
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Run chaser simulation tests.")
+
+    # Boolean flags
+    parser.add_argument("--display", action="store_true", help="Enable visual display")
+    parser.set_defaults(fix_seed=False)
+    
+    parser.add_argument("--no-seed", action="store_false", dest="fix_seed", 
+                        help="Do not fix the random seed (default: seed is fixed)")
+    parser.set_defaults(fix_seed=True)
+
+    # Numeric options
+    parser.add_argument("--runners", type=int, default=4, help="Number of fake runners")
+    parser.add_argument("--chasers", type=int, default=3, help="Number of chasers")
+    parser.add_argument("--reps", type=int, default=100, help="Number of repetitions per testcase")
+
+    # List of test cases
+    parser.add_argument(
+        "--testcases", 
+        nargs="+", 
+        choices=["baseline", "gaussian", "particle_filter"],
+        default=["baseline", "gaussian", "particle_filter"],
+        help="Space-separated list of test cases to run"
+    )
+
+    return parser.parse_args()
 
 def main():
-    run_test("gaussian")
-    return
-    for c in ["baseline", "particle_filter"]:
-        for i in range(10):
-            settings = Settings()
-            settings.random_seed = i
-            time_to_catch, time_to_first_contact = run_test(c, False, settings)  #type: ignore
-            print(f"controller={c} iteration={i} time_to_catch={time_to_catch} time_to_first_contact={time_to_first_contact}")
+    args = get_args()
+
+    # The arguments are now accessible via args.<name>
+    for o in args.testcases:
+        for i in range(args.reps):
+            settings = Settings(
+                n_fake_runners = args.runners,
+                n_chasers = args.chasers
+            )
+            
+            if args.fix_seed:
+                settings.random_seed = i
+            
+            # Use the args.display boolean here
+            time_to_catch, time_to_first_contact = run_test(o, args.display, settings)
+            
+            print(f"controller={o} iteration={i} time_to_catch={time_to_catch} "
+                  f"time_to_first_contact={time_to_first_contact}")
 
 def run_test(
-    controller: Literal["baseline", "gaussian", "particle_filter"],
+    controller: test_options,
     enable_display: bool = True,
     settings: Settings = Settings()
 ) -> Tuple[int, int]:
@@ -59,6 +101,12 @@ def run_test(
             first_contact = counter
 
         counter += 1
+
+        # limit episode length
+        if counter == 2500:
+            if first_contact == 0:
+                first_contact = 2500
+                break
 
         if counter % CONTROL_INTERVALS == 0:
             for c in controllers:
