@@ -1,6 +1,9 @@
-pygame-ce
-numpy
-debugpy
-pytest
-scipy
-matplotlib
+# strictly necessary
+matplotlib==3.10.8
+numpy==2.4.2
+pygame-ce==2.5.6
+scipy==1.17.0
+
+# for development
+debugpy==1.8.20
+pytest==9.0.2
