@@ -156,9 +156,6 @@ class Display:
         x_offset = self.right_x + (self.side_width - new_width) // 2
         y_offset = self.right_y + (self.side_height - new_height) // 2
         
-        # Draw map boundary for right side
-        self._draw_map_area(self.right_x, self.right_y)
-        
         # Blit the image onto the screen
         self.screen.blit(surf, (x_offset, y_offset))
 

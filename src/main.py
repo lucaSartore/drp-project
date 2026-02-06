@@ -126,6 +126,9 @@ def run_test(
         if time_to_sleep > 0 and enable_display:
             sleep(time_to_sleep)
 
+    if enable_display:
+        assert display != None
+        display.close()
 
     return counter, first_contact
 
