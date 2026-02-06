@@ -106,7 +106,7 @@ def run_test(
         if counter == 2500:
             if first_contact == 0:
                 first_contact = 2500
-                break
+            break
 
         if counter % CONTROL_INTERVALS == 0:
             for c in controllers:
