@@ -1,0 +1,249 @@
+\documentclass[twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title{Distributed Robot Perception Report}
+\author{Italy \{luca.sartore-1\}@studenti.unitn.it}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% --- ABSTRACT ---
+% Summarize the core contribution, methodology, and key results of the report.
+\begin{abstract}
+In the scenario presented in this project a robot called ``Runner'' is
+trying to escape three other robots called ``Chasers'' (that are trying to catch him).
+Both the Runner and the Chasers are free to move in any direction,
+and can detect the presence and position of other robots if they are within a certain radius.
+In this project I implemented 3 different logics for the runner.
+One called ``Baseline'' where the Chasers are simply reacting to the latest input
+and don't have any form of memory; One called ``Gaussian'' where the chasers
+approximate the probability distribution of the runner's position using a gaussian,
+and use then a particle filter for tracking; And finally one called ``PF'' (or Particle Filter)
+where the same probability is approximated using a particle filter.
+The results show how the particle filter (even tho is computational cost is much higher)
+significantly outperform the other two when evaluated using the ``time to catch'' as 
+the key metric.
+\end{abstract}
+
+% --- SECTION I: INTRODUCTION ---
+% Provides context, the motivation for the work, and cites existing literature.
+\section{Introduction}
+
+\subsection{Distributed particle filter}
+
+As we will see later on, the proposed solution leverage a particle filter,
+however a distributed implementation of such a filter is not trivial, therefore
+is worth going trough the math here, so that the process will be clearer later.
+The proposed implementation is taken from the ``Cooperative and Graph Signal Processing'' \cite{dpf} book.
+
+In the simplest version of a particle filter, each particle is assigned a weight, and at each iteration
+the weight is modified based on some observations.
+Then a dynamics is applied to the particles, and they are re-sampled (but we are interested
+in the distributed part, so I will not go into further details here).
+The weights update step can be written as:
+
+$$ 
+w_{n}^{(m)} = w_{n-1}^{(m)} f(\mathbf{z}_{n} | \mathbf{x}_{n}^{(m)}), \quad m = 1, 2, \dots, M.
+$$
+
+Where $n$ indicates the time iteration, $m$ is the index of the particles and $M$ is the number
+of particles in the filter.
+$f(\mathbf{z}_{n} | \mathbf{x}_{n}^{(m)})$ is the probability of measure $z_n$
+assuming $x_n$ was the state of the system.
+
+calculating $f(\mathbf{z}_{n} | \mathbf{x}_{n}^{(m)})$ in a centralized way can be done as such:
+
+$$
+f(\mathbf{z}_{n} | \mathbf{x}_{n}) = \prod_{k=1}^{K} f(\mathbf{z}_{n,k} | \mathbf{x}_{n}).
+$$
+
+Where $\mathbf{z}_{n,k}$ is the measurement of robot $k$. However, we will need to implement
+a distributed version, and in order to do so we'll first need to use logarithm properties to transform
+the multiplication into a summation:
+$$
+f(\mathbf{z}_{n}|\mathbf{x}_{n}) = exp(\sum_{k=1}^{K} \ln f(\mathbf{z}_{n,k}|\mathbf{x}_{n}))
+$$
+
+
+In the next sep we will approximate the function $f$ with a summation of $R$ kernel functions weighted
+with parameters $\alpha$. There are many options for the kernel functions, in this work I choose
+chebyshev polynomials \cite{chebyshev}.
+
+$$
+\ln f(\mathbf{z}_{n,k}|\mathbf{x}_n) \approx \sum_{r=1}^{R} \alpha_{n,k,r}(\mathbf{z}_{n,k}) \varphi_r(\mathbf{x}_n)
+$$
+
+putting everything together we get:
+
+$$
+f(\mathbf{z}_{n,k}|\mathbf{x}_n) \approx exp(\sum_{k=1}^{K} 
+\sum_{r=1}^{R} \alpha_{n,k,r}(\mathbf{z}_{n,k}) \varphi_r(\mathbf{x}_n)
+)
+$$
+
+finally we can resolve the summation over $K$ (the agents)
+and reduce the problem to a global set of parameters that will be the 
+same for all agents:
+
+$$
+f(\mathbf{z}_{n,k}|\mathbf{x}_n) \approx exp(
+\sum_{r=1}^{R} \alpha_{n,r}(\mathbf{z}_{n}) \varphi_r(\mathbf{x}_n)
+)
+$$
+
+Now all we need to do is to compute the coefficients $\alpha$ in a distributed way,
+and to do this we can start with an initial guess for each agent that only depend
+on the measurement taken by itself:
+
+$$
+\zeta_{k,r}^{(0)} = \alpha_{n,k,r}(z_{n,k}).
+$$
+
+Note that to find the coefficients $\alpha_{n,k,r}$ we just need to minimize
+the mean square error between the approximation function and the actual local log-likelihood
+of the agent. The mean square error is calculated w.r.t. all the points were particles are located,
+and the problem has a simple closed-form solution (more details in the book \cite{dpf}).
+
+From an initial guess we can then do a finite set of iterations that spread the information
+among the agents:
+
+$$
+\zeta_{k,r}^{(i)} = \sum_{k' \in N_k} \omega_{k,k'}^{(i)} \zeta_{k',r}^{(i-1)}.
+$$
+
+Parameters $\omega$ are the traditional weights used in average consensus algorithms
+and can be set in many ways. For this work we set all parameters at $1/K$ given that
+all the agents have the same sensor's precision, and the topology chosen is a fully connected graph.
+
+In theory with enough iterations the agents should converge into a unified guess.
+Four our work, one iteration was enough given the topology.
+
+$$
+\lim_{i \to \infty} \zeta_{k,r}^{(i)} = a_{n,r}(\mathbf{z}_n)
+$$
+
+
+% --- SUBSECTION I-A: PROBLEM FORMULATION ---
+% Define the specific mathematical or technical problem being addressed.
+\subsection{Problem Formulation}
+
+In the proposed scenario 3 Runner and one chaser are free to move in a rectangular map.
+All robots are equipped with a sensor that can measure the area around the robot.
+
+The runner's always move in a straight line, and ``bounce'' whenever it hits a wall or detect
+a chaser. The bouncing angle is calculated using the specular reflection rule \cite{reflection},
+with the addition of some noise.
+
+In the same map there are also 4 ``Fake Runners'', those are robot that act exactly
+like a runner and can some times ``trick'' the chaser's sensors, and give false positive
+measures.
+
+% --- SECTION II: ADOPTED MODELS ---
+% Describes the frameworks used, including communication protocols and physical dynamics.
+\section{Adopted Models}
+
+\subsection{Communication System}
+
+The proposed project is implemented entirely as a simulation, therefore there are not many
+details here. Each robot's controller is assigned to a different thread, and message queue
+are used to exchange any information.
+The robots are always connected to each others, and form a complete graph.
+
+\subsection{System Model}
+% Define the physical or logical model of the agents (robots, sensors, actuators).
+\subsubsection{Chaser's sensors}
+The chaser's are equipped with a ``radar-like'' sensor that can detect and measure the 
+position of another robot.
+The sensor can be described with the following parameters:
+\begin{itemize}
+    \item \textbf{Detection radius:} The radius/range of the sensor (set to 4 by default)
+    \item \textbf{False negative rate:} The probability of a sensor not detection a runner 
+    inside the detection radius (set to 25\% by default)
+    \item \textbf{False positive rate:} The probability of the sensor misclassifying a fake runner
+    as a real runner (set to 25\% by default)
+    \item \textbf{Measurement STD:} The parameter of a gaussian noise added on top of the measure. 
+    (set to 0.5 by default)
+\end{itemize}
+
+\subsubsection{Runner's sensors}
+
+The runner's sensor has the exact same behavior as the chaser's one, with the only difference being that it
+cannot generate false positive, but only false negative.
+
+\subsubsection{Actuators}
+
+In the simulation both chasers and runner use holonomic motion (meaning that 
+they can move in any direction instantly), however they have a limited speed.
+
+In all the tests the runners and the chasers had the same maximum speed.
+
+\subsubsection{Chaser's controllers}
+
+The primary contribution of the project is in this sub part.
+I tested three different controllers, were two of them have to be considered 
+``baselines'' and the third one is instead the one we are interested in.
+The three controllers are:
+\begin{itemize}
+    \item \textbf{Baseline:} This controller does not have any communication between the robots,
+    and does not keep track of any probability distribution of any kind (the only state that it keeps internally
+    is the position of where a robot was spotted the last time)
+    \item \textbf{Gaussian:} This controller model the probability distribution of the runner's position
+    as a multivariate gaussian, and apply a kalman filter to track it.
+    \item \textbf{PF:} This controller also track the probability distribution of the runner's position
+    but it does so by using a Particle Filter.
+\end{itemize}
+
+% --- SECTION III: SOLUTION ---
+% The core of the paper: explains the proposed algorithms, control laws, or estimators.
+\section{Solution}
+In this section, we will analyse in details the three main points of the proposed approach... bla bla...
+Proposed solution (control laws, estimators, etc.).
+
+% --- SECTION IV: IMPLEMENTATION DETAILS ---
+% Describes the software, hardware, or simulation environment used to test the solution.
+\section{Implementation Details}
+Implementation (practical and/or developed simulator).
+
+% --- SECTION V: RESULTS ---
+% Presents the data, charts, and evidence supporting the effectiveness of the solution.
+\section{Results}
+Experimental results on the system, to be shown with numeric data evidence and graphs.
+
+In Figure 1 it is shown... 
+
+% --- SECTION VI: CONCLUSIONS ---
+% Summarizes findings, discusses limitations, and suggests future work.
+\section{Conclusions}
+In this report we...
+Conclusions and discussions of the benefits and limits of the application and possible future directions.
+
+% --- REFERENCES ---
+% List of cited works used to support the research.
+\begin{thebibliography}{1}
+
+\bibitem{dpf}
+A.~H.~Sayed, P.~M.~Djuri\'{c}, and F.~Hlawatsch, 
+``Cooperative and Graph Signal Processing'',
+Academic Press, 2018, pp. 169--207.
+
+
+
+\bibitem{reflection}
+\url{https://en.wikipedia.org/wiki/Specular_reflection}
+
+\bibitem{chebyshev}
+\url{https://en.wikipedia.org/wiki/Chebyshev_polynomials}
+
+\end{thebibliography}
+
+\vfill
+\noindent\small This report is the final document for the course of ``Distributed Systems for Measurement and Automation''.
+
+
+
+\end{document}
