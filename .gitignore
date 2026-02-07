@@ -1,2 +1,8 @@
 __pycache__/
 results.csv
+*.aux
+*.log
+*.out
+*.gz
+*.fdb_latexmk
+*.fls
