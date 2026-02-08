@@ -35,6 +35,7 @@ the key metric.
 \section{Introduction}
 
 \subsection{Distributed particle filter}
+\label{sec:dpf}
 
 As we will see later on, the proposed solution leverage a particle filter,
 however a distributed implementation of such a filter is not trivial, therefore
@@ -201,13 +202,257 @@ The three controllers are:
 % --- SECTION III: SOLUTION ---
 % The core of the paper: explains the proposed algorithms, control laws, or estimators.
 \section{Solution}
-In this section, we will analyse in details the three main points of the proposed approach... bla bla...
-Proposed solution (control laws, estimators, etc.).
+In this section we will explain the implementation of all the three controllers
+that were tested in this project, with a particular focus on the ``PF'' one.
+
+One thing that accompany all three of the controllers is that they all have two separate
+operating modes:
+\begin{itemize}
+    \item \textbf{Searching mode:} This mode is active when the chaser does not know were the
+    runner is, and is moving ``somewhat randomly'' to trying to find it.
+    \item \textbf{Chasing mode:} This mode is activated when the chaser has a clear idea
+    on the runner's is, and start following in order to try catching it.
+\end{itemize}
+
+
+\subsection{Baseline}
+The ``Baseline'' chaser has a simple logic that can be described as follow:
+
+It keeps an internal state of the current ``objective'' (i.e. a point of the map that it
+wants to reach). At each iteration the robot moves towards the objective.
+The objective can be set into two different ways:
+\begin{itemize}
+    \item Set to the observed value every time a not-null measure is made
+    \item Set to a random position within the map every time we reached current objective
+\end{itemize}
+
+The first strategy represent the ``Chasing mode'' while the second one represent ``Searching mode''.
+
+\subsection{Gaussian}
+
+The gaussian controller has an internal state that contains a mean and a covariance matrix
+of a multivariate normal distribution. This distribution represent the
+probability distribution of the runner's position and it is then used for the controller.
+
+The distribution is kept up to date using a traditional distributed kalman
+filter (that uses information vector and information matrix).
+
+\subsubsection{Controller}
+
+The controller implementation is straightforward, it implement searching and chasing mode
+in the following ways:
+\begin{itemize}
+    \item \textbf{Searching mode:} The chaser samples a random point from the gaussian
+    distributed, and start moving towards it, when the point is reached a new point is
+    sampled, and the cycle repeats.
+    \item \textbf{Chasing mode:} The robot moves towards the center of the gaussian.
+    This mode is activated only when the variance among all dimensions is below a certain
+    threshold.
+\end{itemize}
+
+\subsubsection{State and Transition function}
+The gaussian filter only tracks the chaser's x and y coordinates.
+
+The state transition function add a gaussian noise on top of the state,
+The noise variance is a multiple of the runner's speed.
+This is an approximation, as a more realistic update step would require us
+to track the runner's speed as well, however this can't be done for two reasons:
+\begin{itemize}
+    \item The sensors don't give speed as a measure
+    \item When the chaser ``bounce'' on a wall, the update in the speed is non-linear
+\end{itemize}
+
+
+\subsubsection{Handling negative measures}
+
+When the chasers get a negative measure (i.e. no runner found within the radius)
+it is getting some information, and we would like to update the gaussian respectively,
+however the resulting PDF cannot be easily encoded in a gaussian
+(see figure \ref{fig:carved_gaussian} as an example).
+Any gaussian approximation of such distributed would be a bad approximation, not
+to mention that it probably would not have a closed form solution.
+For this reasons I choose to simply treat negative measures as a measure centered
+in zero with a absurdly high variance.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/distribution-update.png}
+    \caption{negative measure effect on a gaussian PDF}
+    \label{fig:carved_gaussian}
+\end{figure}
+
+\subsection{Particle Filter}
+
+The third and final controller implemented for this project is based on a particle filter.
+We already discussed the math behind a distributed particle filter in section \ref{sec:dpf}.
+Now two things are left to explain:
+\begin{itemize}
+    \item Calculating $f(\mathbf{z}_{n,k} | \mathbf{x}_{n})$ (discussed in \ref{sec:pf_pom})
+    \item Defining the controller (discussed in \ref{sec:pf_cont})
+\end{itemize}
+
+
+\subsubsection{Calculating the probability of a measure}
+\label{sec:pf_pom}
+
+Calculating $f(\mathbf{z}_{n,k} | \mathbf{x}_{n})$ can be done by splitting it into $M$ parts:
+$f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ (where $M$ indicates the number of particles in the filter)
+and $\mathbf{x}_{nk}^{(m)}$ represent the $m$-th particle of agent $k$.
+
+To calculate $f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ we first need a way to model the ``false positive''
+measures. In theory we could model them in a precise way assuming that we kept track of not only 
+the probability distributed of the runner, but also of the probability distribution of the fake runners.
+
+This however can be prohibitively expensive, as the particle filter is already quite heavy in terms
+of computational resources, therefore the second best option is to approximate the probability
+of a false positive measure:
+
+$$
+p_{fp} = p_{inside} \times FPR \approx \frac{\pi R^2}{A} \times FPR
+$$
+
+were $p_{fp}$ is the probability that one fake runner is detected as a false positive,
+$p_{inside}$ is the probability tha the fake runner is inside the detection radius of the chaser
+and $FPR$ is the false positive rate. $p_{inside}$ is approximated by using $R$ (the detection radius of the robot)
+and $A$ (the area of the map).
+
+This approximation has an underlying issue: With this formulation we are implicitly saying that 
+false positive measures are independent from each others, but this is not the case, if a false positive
+measure occurs then more false positive are likelier to occur because $p_{inside}$ will be higher.
+The results shows that even with this issue the particle filter is still able to outperform
+the other techniques, however it is worth keeping this limitation in mind.
+
+Now we can split the calculated of $f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ into two sub cases depending
+on the measure being a negative or a positive:
+
+\paragraph{Negative measure case:}
+If the measurement is a negative (i.e. no runner detected) the probability
+of set measure given a particle $\mathbf{x}_{nk}^{(m)}$ can be defined as:
+
+\[
+f = 
+\begin{cases} 
+      (1-p_{fp})^{N_{fr}} & \text{if } \mathbf{x}_{nk}^{(m)} \text{ is out of range} \\
+      (1-p_{fp})^{N_{fr}} \times FNR & \text{otherwise}
+\end{cases}
+\]
+
+Where $N_{fr}$ represent the number of fake runners, and $FNR$ is the false negative rate.
+The formulation considers two separate cases depending on the particle being inside or outside
+the range of the sensor.
+
+\paragraph{Positive measure case:}
+If the measurement is a positive (i.e. a position is detected) the probability
+of set measure given a particle $\mathbf{x}_{nk}^{(m)}$ can be defined as:
+
+\[
+f = \rho(\mathbf{x}_{nk}^{(m)}; \sigma^2, \mathbf{z}_{n,k}) \times (1-FNR) + \frac{N_{fr}}{A} \times FPR
+\]
+
+Where $\mathbf{x}_{nk}^{(m)}$ is the position of particle $m$, $\sigma^2$ is the variance of the measure and
+$\mathbf{z}_{n,k}$ is the measurement value.
+Then $FNR$ and $FPR$ are false negative and false positive rates respectively, $N_{fr}$
+is the number of fake runners and $A$ is the area of the map.
+Here the probability of a fake runner being having generated the measure is approximated
+as a uniform distribution ($N_{fr}/A$), and we don't need to have two special cases
+for measurement inside and outside the detection radius as we will never get positive measures
+outside the range of the sensor.
+
+\paragraph{Final step}
+
+Once each agent compute the probability of each particle being true given the measure
+it proceed to find the kernel function multiplier that best approximate the probability
+distribution, and then proceed with the exchange of message that will result in a global
+guess (this was already explained in \ref{sec:dpf}).
+
+The kernel function chosen were chebyshev polynomials \cite{chebyshev}, as they are 
+best suited for circumstances were the approximated function has a rectangular domain
+(such as our case).
+
+I selected a 10th order approximation  for the x axis, and a 10th order approximation
+for the y axis, this resulted in 121 coefficients.
+
+\subsubsection{Controller}
+\label{sec:pf_cont}
+
+The controller is straightforward, and is once again splitted into two separate modes:
+
+\paragraph{Searching mode}:
+This mode is the default one, and it picks a random particle (with the choice being conditioned
+by the particle's weight, and the distance from the current position) and start to move towards it.
+
+It stops this movement if either it reaches the destination, or the controller note a sharp
+decrease in the target's likelihood (meaning that probability a chaser already went there
+and verified that there was no runner to be found)
+
+\paragraph{Chasing mode}:
+This mode is activated only when the particle are concentrated within a certain area, and
+make the chaser move towards the median of the particles.
+
+\subsubsection{Issues and solutions}
+
+In this section I will describe a few issues and solution that are specific to our particle
+filter implementation:
+
+\paragraph{The ``Ghost'' issue:} 
+Given that we are approximating the probability of measures with a finite number of kernel functions
+it is natural that there will be some errors, and that some ``ripple'' effect will be generated
+(as we can se in figure \ref{fig:ripple}).
+It can sometimes happen that those ripple are concentrated in the same zones for a few
+consecutive iterations, and therefore the probability of particle in that zone will increase
+even tho no ``real'' measure suggest that.
+
+This issue was especially frequent in the borders of the map, where the approximation
+was worst due to lack of sample. To solve this issue I added ``virtual'' particles along
+the map's border.
+These particles were only considered when calculating the approximation coefficients
+and significantly reduced the ``ghost'' issue.
+
+ 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/prob_approximation.png}
+    \caption{
+        Approximated version of the probability of measures given particle position.
+        ($f(\mathbf{z}_{n} | \mathbf{x}_{n})$)
+    }
+    \label{fig:ripple}
+\end{figure}
+
+
+\paragraph{The loss of diversity issue:}
+
+Some times particles converged into a single zone of the map (due to for example a ghost issue or
+some multiple false positive happening in a row). This meant that a measurement made in 
+other zones of the map would be completely ignored (given that there were no particles there).
+This could be solved by adding more particles so that they would better approximate the distribution
+but that is expensive, so the adopted solution was to apply a custom re-sampling logic:
+
+When resampling, instead of a traditional resample 400 out of the 2000 particles were spread
+randomly in the map, and were given a total probability of 1\%.
+
+
+\paragraph{The state transition issue:}
+Unfortunately to apply a correct state-transition function we would need to know the velocity
+of the robot, however that variable is not tracked in the current version of the particle filter,
+and therefore the adopted solution used a random movement proportional to the runner's velocity
+
+
+
+
+
 
 % --- SECTION IV: IMPLEMENTATION DETAILS ---
 % Describes the software, hardware, or simulation environment used to test the solution.
 \section{Implementation Details}
-Implementation (practical and/or developed simulator).
+
+The simulation was implemented in python, with a frontend for visualization built with
+pygame community edition and matplotlib.
+All agent's controller were implemented in a separate thread for better performances,
+and messages queue where used for message exchange.
+The python version used was 1.14 that thanks to the removal of the GIL
+allowed better multithreaded execution. All test were run on a ryzen 5 5600 desktop CPU.
 
 % --- SECTION V: RESULTS ---
 % Presents the data, charts, and evidence supporting the effectiveness of the solution.
