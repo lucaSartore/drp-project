@@ -3,6 +3,8 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{multirow}
+\usepackage[table,xcdraw]{xcolor}
 
 \title{Distributed Robot Perception Report}
 \author{Italy \{luca.sartore-1\}@studenti.unitn.it}
@@ -264,6 +266,7 @@ to track the runner's speed as well, however this can't be done for two reasons:
 
 
 \subsubsection{Handling negative measures}
+\label{sec:gaussian_neg_measures}
 
 When the chasers get a negative measure (i.e. no runner found within the radius)
 it is getting some information, and we would like to update the gaussian respectively,
@@ -274,7 +277,7 @@ to mention that it probably would not have a closed form solution.
 For this reasons I choose to simply treat negative measures as a measure centered
 in zero with a absurdly high variance.
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.4\textwidth]{./images/distribution-update.png}
     \caption{negative measure effect on a gaussian PDF}
@@ -410,7 +413,7 @@ and significantly reduced the ``ghost'' issue.
 
  
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.4\textwidth]{./images/prob_approximation.png}
     \caption{
@@ -457,9 +460,98 @@ allowed better multithreaded execution. All test were run on a ryzen 5 5600 desk
 % --- SECTION V: RESULTS ---
 % Presents the data, charts, and evidence supporting the effectiveness of the solution.
 \section{Results}
-Experimental results on the system, to be shown with numeric data evidence and graphs.
 
-In Figure 1 it is shown... 
+\subsection{Proposed methods performances}
+
+In this section we will compare the results obtained by the three proposed methodologies
+using 3 key metrics:
+\begin{itemize}
+    \item \textbf{TTC (or Time To Catch):} this is the total time (in simulation steps)
+    that the chasers took to catch the runner
+    \item \textbf{TTFC (or Time To First Contact):} this is the total (in simulations steps)
+    that past from the beginning from when the runner entered the detection radius of a chaser
+    \item \textbf{TChase:} defined as $TTC - TTFC$
+\end{itemize}
+
+The figure \ref{fig:comparison} show the three metrics across all three approaches, with the error bar
+representing the standard deviation of the scores.
+
+The standard deviation is high across all samples due to the fact that the time for a catch
+is highly dependent on the initial position of the robot.
+To mitigate this issue 100 tests were made for each strategy, and the seed was set to the same
+value in the i-th test of every strategy.
+
+
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/comparison.png}
+    \caption{comparison between the proposed solutions}
+    \label{fig:comparison}
+\end{figure}
+
+
+The table below show the t-test's P-value of the comparison between 
+the various metrics and solutions.
+
+We can easily see from the table that, even tho the variance is pretty high
+thanks to the high number of samples we can say with high confidence that all
+the difference shown are statistically significant.
+\begin{table}[ht]
+\centering
+\resizebox{0.49\textwidth}{!}{
+    \begin{tabular}{|l|rrr|}
+    \hline
+    \cellcolor[HTML]{EFEFEF}                            & \multicolumn{3}{c|}{TTest: P-Value}                                                                               \\ \cline{2-4} 
+    \multirow{-2}{*}{\cellcolor[HTML]{EFEFEF}\textbf{}} & \multicolumn{1}{c|}{TTC}                 & \multicolumn{1}{c|}{TTFC}                & \multicolumn{1}{c|}{TChase} \\ \hline
+    baseline vs gaussian                                & \multicolumn{1}{r|}{\textless{}0,000001} & \multicolumn{1}{r|}{0,000413}            & 0,000008                    \\ \hline
+    baseline vs pf                                      & \multicolumn{1}{r|}{0,005782}            & \multicolumn{1}{r|}{0,006214}            & 0,310494                    \\ \hline
+    pf vs gaussian                                      & \multicolumn{1}{r|}{\textless{}0,000001} & \multicolumn{1}{r|}{\textless{}0,000001} & \textless{}0,000001         \\ \hline
+    \end{tabular}
+}
+\end{table}
+
+\paragraph{Expleination of the observed results:}
+Two interesting trends are clear when looking at figure \ref{fig:comparison}.
+The first one is that the gaussian controller performs really poorly, even worst than the
+simple baseline one; This can be explained with three key reasons:
+
+\begin{itemize}
+    \item The gaussian is not really suited for the search process, it can't provide a reasonable approximation
+    on where the runner is making the search ineffective. In particular if the variance is too low the search process
+    is focussed too much on the center of the map, and if the variance is too high most of the probability density
+    is outside the borders of the map.
+    \item As discussed in section \ref{sec:gaussian_neg_measures} encoding the information associated with a negative measure
+    in a gaussian is hard, this results in this controller having less information than the particle filter one,
+    and it also made it more susceptible to false positive measures. (given than, once a false positive measure occurs, the
+    associated information can't be undone by a subsequent negative measure)
+    \item The fact that we don't keep the direction in the state of the system make the tracking process slower (as at every
+    iteration the gaussian has simply is variance increase, and then is conditioned based on the measures).
+    This make it so that the center of the gaussian is always a bit behind the robot's position, and this causes the
+    chasing process take a bit longer.
+\end{itemize}
+
+Observing the comparison between the ``Baseline'' and the ``PF'' solution reveal some more interesting threads:
+the difference in TChase is really small at about 12\% while the difference in TTFC is much higher at approximately
+107\%; This suggest that the main benefits of using an informed search strategy is not really the tracking of the target once
+it has been spotted, but it has more to do with the ability of searching the target in an efficient way even before
+the target has been spotted once.
+
+This effect can be seen in figure \ref{fig:pf_map} where the chasers have an somewhat accurate 
+guess on the position of the runner, even if none of them has yet being able to see it.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/pf_map.png}
+    \caption{Chasers guess of the runner's position (left image show the map with runners in red an chaser in green, right image 
+    show a 2D histogram of the position of the particles)}
+    \label{fig:pf_map}
+\end{figure}
+
+
+
+
 
 % --- SECTION VI: CONCLUSIONS ---
 % Summarizes findings, discusses limitations, and suggests future work.
