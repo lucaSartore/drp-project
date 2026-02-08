@@ -6,7 +6,8 @@ robot in a non deterministic scenario. To learn more about it check out the [rep
 ## How to setup the environment
 
 The environment is straightforward to setup, it requires *Python 3.14*
-(you are free to try older versions, but I haven't tested them)
+(you will be able to make it work with older python versions, but it may requires some 
+fixes especially related to type annotations and co)
 and have specific library requirements that are written in [requires.txt](./requirements.txt)
 
 
@@ -19,6 +20,14 @@ conda activate drp
 pip install -r requirements.txt
 python ./src/main.py
 ```
+
+## A note on the GUI
+
+The GUI provided with this project is intended to be used for development only,
+it will crash some times due to a limitation of matplotlib (that refiuses to work
+on threads different from the main one).
+
+The "gui-free" execution for benchmarking has no known issue.
 
 ## CLI Benchmarking Tool Documentation
 
