@@ -1,11 +1,12 @@
 \documentclass[twocolumn]{article}
 \usepackage[utf8]{inputenc}
+\usepackage{multicol}
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{multirow}
 \usepackage[table,xcdraw]{xcolor}
-
+\usepackage[top=3.9cm, bottom=3cm]{geometry}
 \title{Distributed Robot Perception Report}
 \author{Italy \{luca.sartore-1\}@studenti.unitn.it}
 \date{}
@@ -550,14 +551,92 @@ guess on the position of the runner, even if none of them has yet being able to 
 \end{figure}
 
 
+\subsection{Computational costs}
+The figure XXX show the computational cost of the proposed methods.
+There is nothing surprising here, the particle filter is as expected by far the most
+expensive.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/time_comparison.png}
+    \caption{Time needed for one control loop of various techniques}
+    \label{fig:comp_costs}
+\end{figure}
+
+\subsection{Effect of various variables}
+
+In this section we will explore the effects that various variables have on the
+time to catch metric. The idea is to understand what is the most effective way
+to improve the performances if we for example have a limited budget for sensors.
+
+The variables that were tested are:
+\begin{itemize}
+    \item Number of chasers
+    \item Detection radius
+    \item False positive rate
+    \item False negative rate
+\end{itemize}
+
+I should mentioned that the run to run variance on this is relatively high
+at about 60 points on average.
+The results have being calculated with the same 100 fix-seed tests
+used for the previous benchmarks, however fixing the seed only
+makes the initial condition the same, and doesn't have influence on how the
+system evolves.
+Unfortunately increasing sample size and reducing the variance even further
+was complicated, as these tests already required 6+ hours of compute time.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./images/effect_cmp_1.png}\\[0.5cm]
+    \includegraphics[width=0.4\textwidth]{./images/effect_cmp_2.png}\\[0.5cm]
+    \includegraphics[width=0.4\textwidth]{./images/effect_cmp_3.png}\\[0.5cm]
+    \includegraphics[width=0.4\textwidth]{./images/effect_cmp_4.png}
+    \caption{Effect of different variables on the time to catch metric}
+    \label{fig:vars}
+\end{figure}
+
+
+As we can see in figure \ref{fig:vars} the most important variable
+seem to be the detection radius, with all other variable having a smaller
+(although still measurable) impact.
+
+We can also see how some time a variable's effect seem to have a non monotonic effect on the 
+time to catch (such as in the case of the false negative rate); However as we sed earlier
+this test have some high variance associated to them, so the correct way to interpret
+this result is that the effect at a certain point is quite small, and have a
+impact that is comparably small
+
 
 
 
 % --- SECTION VI: CONCLUSIONS ---
 % Summarizes findings, discusses limitations, and suggests future work.
 \section{Conclusions}
-In this report we...
-Conclusions and discussions of the benefits and limits of the application and possible future directions.
+In this report we discussed three different approaches for controlling chasers
+in a runner-chasers scenario.
+
+The results have shown that the biggest gains can be had in the first part of
+an episode (the search) rather than the second part (the chase), this
+resulted in methods that can effectively represent complex PDF (namely the particle
+filter) greatly outperforming other methods.
+
+The work done still has some limitations, in particular
+the way the probability of false positive has being approximated could be
+improved if we were to track the position of fake runners as well.
+
+Furthermore adding the runner's velocity to the state (rather than just tracking
+the position) could further improve the performances of the algorithms
+
+These proposed improvements are a grate opportunity for potential future works
+related to this project, however the main challenge still remain the computational
+cost of techniques such as the particle filter, and this challenges would only
+increase if we started tracking fake runners, or adding components to the state.
+
+Chaser's coordination is also something that was not threated in this report,
+but could also improve results.
+
 
 % --- REFERENCES ---
 % List of cited works used to support the research.
@@ -579,7 +658,7 @@ Academic Press, 2018, pp. 169--207.
 \end{thebibliography}
 
 \vfill
-\noindent\small This report is the final document for the course of ``Distributed Systems for Measurement and Automation''.
+\noindent\small This report is the final document for the course of ``Distributed Robot Perception''.
 
 
 
