@@ -22,14 +22,14 @@ In the scenario presented in this project a robot called ``Runner'' is
 trying to escape three other robots called ``Chasers'' (that are trying to catch him).
 Both the Runner and the Chasers are free to move in any direction,
 and can detect the presence and position of other robots if they are within a certain radius.
-In this project I implemented 3 different logics for the runner.
+In this project I implemented 3 different logics for the runners.
 One called ``Baseline'' where the Chasers are simply reacting to the latest input
 and don't have any form of memory; One called ``Gaussian'' where the chasers
 approximate the probability distribution of the runner's position using a gaussian,
-and use then a particle filter for tracking; And finally one called ``PF'' (or Particle Filter)
+and use then a kalman filter for tracking; And finally one called ``PF'' (or Particle Filter)
 where the same probability is approximated using a particle filter.
-The results show how the particle filter (even tho is computational cost is much higher)
-significantly outperform the other two when evaluated using the ``time to catch'' as 
+The results show how the particle filter (even though its computational cost is much higher)
+significantly outperforms the other two when evaluated using the ``time to catch'' as 
 the key metric.
 \end{abstract}
 
@@ -67,14 +67,14 @@ f(\mathbf{z}_{n} | \mathbf{x}_{n}) = \prod_{k=1}^{K} f(\mathbf{z}_{n,k} | \mathb
 $$
 
 Where $\mathbf{z}_{n,k}$ is the measurement of robot $k$. However, we will need to implement
-a distributed version, and in order to do so we'll first need to use logarithm properties to transform
+a distributed version, and in order to do so we will first need to use logarithm properties to transform
 the multiplication into a summation:
 $$
 f(\mathbf{z}_{n}|\mathbf{x}_{n}) = exp(\sum_{k=1}^{K} \ln f(\mathbf{z}_{n,k}|\mathbf{x}_{n}))
 $$
 
 
-In the next sep we will approximate the function $f$ with a summation of $R$ kernel functions weighted
+In the next step we will approximate the function $f$ with a summation of $R$ kernel functions weighted
 with parameters $\alpha$. There are many options for the kernel functions, in this work I choose
 chebyshev polynomials \cite{chebyshev}.
 
@@ -101,7 +101,7 @@ f(\mathbf{z}_{n,k}|\mathbf{x}_n) \approx exp(
 $$
 
 Now all we need to do is to compute the coefficients $\alpha$ in a distributed way,
-and to do this we can start with an initial guess for each agent that only depend
+and to do this we can start with an initial guess for each agent that only depends
 on the measurement taken by itself:
 
 $$
@@ -124,8 +124,8 @@ Parameters $\omega$ are the traditional weights used in average consensus algori
 and can be set in many ways. For this work we set all parameters at $1/K$ given that
 all the agents have the same sensor's precision, and the topology chosen is a fully connected graph.
 
-In theory with enough iterations the agents should converge into a unified guess.
-Four our work, one iteration was enough given the topology.
+In theory with enough iterations the agents should converge to a unified guess.
+For our work, one iteration was enough given the topology.
 
 $$
 \lim_{i \to \infty} \zeta_{k,r}^{(i)} = a_{n,r}(\mathbf{z}_n)
@@ -136,15 +136,15 @@ $$
 % Define the specific mathematical or technical problem being addressed.
 \subsection{Problem Formulation}
 
-In the proposed scenario 3 Runner and one chaser are free to move in a rectangular map.
+In the proposed scenario 3 Runners and one Chaser are free to move in a rectangular map.
 All robots are equipped with a sensor that can measure the area around the robot.
 
-The runner's always move in a straight line, and ``bounce'' whenever it hits a wall or detect
+The runner always moves in a straight line, and ``bounces'' whenever it hits a wall or detects
 a chaser. The bouncing angle is calculated using the specular reflection rule \cite{reflection},
 with the addition of some noise.
 
-In the same map there are also 4 ``Fake Runners'', those are robot that act exactly
-like a runner and can some times ``trick'' the chaser's sensors, and give false positive
+In the same map there are also 4 ``Fake Runners'', those are robots that act exactly
+like a runner and can sometimes ``trick'' the chaser's sensors, and give false positive
 measures.
 
 % --- SECTION II: ADOPTED MODELS ---
@@ -154,19 +154,19 @@ measures.
 \subsection{Communication System}
 
 The proposed project is implemented entirely as a simulation, therefore there are not many
-details here. Each robot's controller is assigned to a different thread, and message queue
+details here. Each robot's controller is assigned to a different thread, and message queues
 are used to exchange any information.
 The robots are always connected to each others, and form a complete graph.
 
 \subsection{System Model}
 % Define the physical or logical model of the agents (robots, sensors, actuators).
 \subsubsection{Chaser's sensors}
-The chaser's are equipped with a ``radar-like'' sensor that can detect and measure the 
+The chasers are equipped with a ``radar-like'' sensor that can detect and measure the 
 position of another robot.
 The sensor can be described with the following parameters:
 \begin{itemize}
     \item \textbf{Detection radius:} The radius/range of the sensor (set to 4 by default)
-    \item \textbf{False negative rate:} The probability of a sensor not detection a runner 
+    \item \textbf{False negative rate:} The probability of a sensor not detecting a runner 
     inside the detection radius (set to 25\% by default)
     \item \textbf{False positive rate:} The probability of the sensor misclassifying a fake runner
     as a real runner (set to 25\% by default)
@@ -177,28 +177,28 @@ The sensor can be described with the following parameters:
 \subsubsection{Runner's sensors}
 
 The runner's sensor has the exact same behavior as the chaser's one, with the only difference being that it
-cannot generate false positive, but only false negative.
+cannot generate false positives, but only false negatives.
 
 \subsubsection{Actuators}
 
 In the simulation both chasers and runner use holonomic motion (meaning that 
 they can move in any direction instantly), however they have a limited speed.
 
-In all the tests the runners and the chasers had the same maximum speed.
+In all tests, the runners and the chasers had the same maximum speed.
 
 \subsubsection{Chaser's controllers}
 
-The primary contribution of the project is in this sub part.
-I tested three different controllers, were two of them have to be considered 
+The primary contribution of the project is in this subsection.
+I tested three different controllers, where two of them have to be considered 
 ``baselines'' and the third one is instead the one we are interested in.
 The three controllers are:
 \begin{itemize}
     \item \textbf{Baseline:} This controller does not have any communication between the robots,
     and does not keep track of any probability distribution of any kind (the only state that it keeps internally
-    is the position of where a robot was spotted the last time)
-    \item \textbf{Gaussian:} This controller model the probability distribution of the runner's position
+    is the position where a runner was last spotted)
+    \item \textbf{Gaussian:} This controller models the probability distribution of the runner's position
     as a multivariate gaussian, and apply a kalman filter to track it.
-    \item \textbf{PF:} This controller also track the probability distribution of the runner's position
+    \item \textbf{PF:} This controller also tracks the probability distribution of the runner's position
     but it does so by using a Particle Filter.
 \end{itemize}
 
@@ -208,13 +208,13 @@ The three controllers are:
 In this section we will explain the implementation of all the three controllers
 that were tested in this project, with a particular focus on the ``PF'' one.
 
-One thing that accompany all three of the controllers is that they all have two separate
+One thing that accompanies all three of the controllers is that they all have two separate
 operating modes:
 \begin{itemize}
-    \item \textbf{Searching mode:} This mode is active when the chaser does not know were the
-    runner is, and is moving ``somewhat randomly'' to trying to find it.
+    \item \textbf{Searching mode:} This mode is active when the chaser does not know where the
+    runner is, and is moving ``somewhat randomly'' trying to find it.
     \item \textbf{Chasing mode:} This mode is activated when the chaser has a clear idea
-    on the runner's is, and start following in order to try catching it.
+    of where the runner is, and starts following in order to catch it.
 \end{itemize}
 
 
@@ -234,22 +234,22 @@ The first strategy represent the ``Chasing mode'' while the second one represent
 \subsection{Gaussian}
 
 The gaussian controller has an internal state that contains a mean and a covariance matrix
-of a multivariate normal distribution. This distribution represent the
-probability distribution of the runner's position and it is then used for the controller.
+of a multivariate normal distribution. This distribution represents the
+PDF of the runner's position and it is then used for the controller.
 
 The distribution is kept up to date using a traditional distributed kalman
 filter (that uses information vector and information matrix).
 
 \subsubsection{Controller}
 
-The controller implementation is straightforward, it implement searching and chasing mode
+The controller implementation is straightforward. It implements searching and chasing modes
 in the following ways:
 \begin{itemize}
     \item \textbf{Searching mode:} The chaser samples a random point from the gaussian
     distributed, and start moving towards it, when the point is reached a new point is
     sampled, and the cycle repeats.
     \item \textbf{Chasing mode:} The robot moves towards the center of the gaussian.
-    This mode is activated only when the variance among all dimensions is below a certain
+    This mode is activated only when the variance in all dimensions is below a certain
     threshold.
 \end{itemize}
 
@@ -269,13 +269,13 @@ to track the runner's speed as well, however this can't be done for two reasons:
 \subsubsection{Handling negative measures}
 \label{sec:gaussian_neg_measures}
 
-When the chasers get a negative measure (i.e. no runner found within the radius)
-it is getting some information, and we would like to update the gaussian respectively,
+When the chasers get a negative measure (i.e., no runner found within the radius)
+they are getting some information, and we would like to update the gaussian accordingly,
 however the resulting PDF cannot be easily encoded in a gaussian
 (see figure \ref{fig:carved_gaussian} as an example).
-Any gaussian approximation of such distributed would be a bad approximation, not
+Any gaussian approximation of such a distribution would be a bad approximation, not
 to mention that it probably would not have a closed form solution.
-For this reasons I choose to simply treat negative measures as a measure centered
+For this reason, I chose to simply treat negative measures as a measure centered
 in zero with a absurdly high variance.
 
 \begin{figure}[ht]
@@ -305,28 +305,28 @@ and $\mathbf{x}_{nk}^{(m)}$ represent the $m$-th particle of agent $k$.
 
 To calculate $f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ we first need a way to model the ``false positive''
 measures. In theory we could model them in a precise way assuming that we kept track of not only 
-the probability distributed of the runner, but also of the probability distribution of the fake runners.
+the probability distribution of the runner, but also of the probability distribution of the fake runners.
 
-This however can be prohibitively expensive, as the particle filter is already quite heavy in terms
+This however can be prohibitively expensive, and the particle filter is already quite heavy in terms
 of computational resources, therefore the second best option is to approximate the probability
-of a false positive measure:
+of a false positive measure as such:
 
 $$
 p_{fp} = p_{inside} \times FPR \approx \frac{\pi R^2}{A} \times FPR
 $$
 
 were $p_{fp}$ is the probability that one fake runner is detected as a false positive,
-$p_{inside}$ is the probability tha the fake runner is inside the detection radius of the chaser
+$p_{inside}$ is the probability that the fake runner is inside the detection radius of the chaser
 and $FPR$ is the false positive rate. $p_{inside}$ is approximated by using $R$ (the detection radius of the robot)
 and $A$ (the area of the map).
 
-This approximation has an underlying issue: With this formulation we are implicitly saying that 
-false positive measures are independent from each others, but this is not the case, if a false positive
+This approximation has an underlying issue: with this formulation we are implicitly saying that 
+false positive measures are independent from each other, but this is not the case. If a false positive
 measure occurs then more false positive are likelier to occur because $p_{inside}$ will be higher.
 The results shows that even with this issue the particle filter is still able to outperform
 the other techniques, however it is worth keeping this limitation in mind.
 
-Now we can split the calculated of $f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ into two sub cases depending
+Now we can split the calculation of $f(\mathbf{z}_{n,k} | \mathbf{x}_{nk}^{(m)})$ into two subcases depending
 on the measure being a negative or a positive:
 
 \paragraph{Negative measure case:}
@@ -341,12 +341,12 @@ f =
 \end{cases}
 \]
 
-Where $N_{fr}$ represent the number of fake runners, and $FNR$ is the false negative rate.
+Where $N_{fr}$ represents the number of fake runners, and $FNR$ is the false negative rate.
 The formulation considers two separate cases depending on the particle being inside or outside
 the range of the sensor.
 
 \paragraph{Positive measure case:}
-If the measurement is a positive (i.e. a position is detected) the probability
+If the measurement is a positive (i.e. a runner is detected) the probability
 of set measure given a particle $\mathbf{x}_{nk}^{(m)}$ can be defined as:
 
 \[
@@ -357,8 +357,10 @@ Where $\mathbf{x}_{nk}^{(m)}$ is the position of particle $m$, $\sigma^2$ is the
 $\mathbf{z}_{n,k}$ is the measurement value.
 Then $FNR$ and $FPR$ are false negative and false positive rates respectively, $N_{fr}$
 is the number of fake runners and $A$ is the area of the map.
-Here the probability of a fake runner being having generated the measure is approximated
-as a uniform distribution ($N_{fr}/A$), and we don't need to have two special cases
+Here we are approximating the probability that a fake runner
+is in a specific position as a uniform distribution ($N_{fr}/A$). 
+
+In the formula we don't need to have two special cases
 for measurement inside and outside the detection radius as we will never get positive measures
 outside the range of the sensor.
 
@@ -366,11 +368,11 @@ outside the range of the sensor.
 
 Once each agent compute the probability of each particle being true given the measure
 it proceed to find the kernel function multiplier that best approximate the probability
-distribution, and then proceed with the exchange of message that will result in a global
+function, and then proceed with the exchange of message that will result in a global
 guess (this was already explained in \ref{sec:dpf}).
 
-The kernel function chosen were chebyshev polynomials \cite{chebyshev}, as they are 
-best suited for circumstances were the approximated function has a rectangular domain
+The kernel functions chosen were Chebyshev polynomials \cite{chebyshev}, as they are 
+best suited for circumstances where the approximated function has a rectangular domain
 (such as our case).
 
 I selected a 10th order approximation  for the x axis, and a 10th order approximation
@@ -379,35 +381,35 @@ for the y axis, this resulted in 121 coefficients.
 \subsubsection{Controller}
 \label{sec:pf_cont}
 
-The controller is straightforward, and is once again splitted into two separate modes:
+The controller is straightforward, and is once again split into two separate modes:
 
 \paragraph{Searching mode}:
 This mode is the default one, and it picks a random particle (with the choice being conditioned
-by the particle's weight, and the distance from the current position) and start to move towards it.
+by the particle's weight and the distance from the current position) and starts to move towards it.
 
-It stops this movement if either it reaches the destination, or the controller note a sharp
-decrease in the target's likelihood (meaning that probability a chaser already went there
+It stops this movement if either it reaches the destination, or the controller notes a sharp
+decrease in the target's likelihood (meaning that probably a chaser already went there
 and verified that there was no runner to be found)
 
 \paragraph{Chasing mode}:
-This mode is activated only when the particle are concentrated within a certain area, and
-make the chaser move towards the median of the particles.
+This mode is activated only when the particles are concentrated within a certain area, and
+makes the chaser move towards the median of the particles.
 
 \subsubsection{Issues and solutions}
 
-In this section I will describe a few issues and solution that are specific to our particle
+In this section I will describe a few issues and solutions that are specific to my particle
 filter implementation:
 
 \paragraph{The ``Ghost'' issue:} 
-Given that we are approximating the probability of measures with a finite number of kernel functions
+Given that we are approximating the probability of measures with a finite number of kernel functions,
 it is natural that there will be some errors, and that some ``ripple'' effect will be generated
-(as we can se in figure \ref{fig:ripple}).
-It can sometimes happen that those ripple are concentrated in the same zones for a few
-consecutive iterations, and therefore the probability of particle in that zone will increase
+(as we can see in figure \ref{fig:ripple}).
+It can sometimes happen that those ripples are concentrated in the same zones for a few
+consecutive iterations, and therefore the probability of particles in that zone will increase
 even tho no ``real'' measure suggest that.
 
 This issue was especially frequent in the borders of the map, where the approximation
-was worst due to lack of sample. To solve this issue I added ``virtual'' particles along
+was worst due to lack of samples. To solve this issue I added ``virtual'' particles along
 the map's border.
 These particles were only considered when calculating the approximation coefficients
 and significantly reduced the ``ghost'' issue.
@@ -427,20 +429,20 @@ and significantly reduced the ``ghost'' issue.
 
 \paragraph{The loss of diversity issue:}
 
-Some times particles converged into a single zone of the map (due to for example a ghost issue or
-some multiple false positive happening in a row). This meant that a measurement made in 
+Sometimes particles converge into a single zone of the map (due to, for example, a ghost issue or
+some multiple false positives happening in a row). This meant that a measurement made in 
 other zones of the map would be completely ignored (given that there were no particles there).
-This could be solved by adding more particles so that they would better approximate the distribution
-but that is expensive, so the adopted solution was to apply a custom re-sampling logic:
+This could be solved by adding more particles so that they would better approximate the distribution,
+but that is expensive, so the adopted solution was to apply a custom resampling logic:
 
-When resampling, instead of a traditional resample 400 out of the 2000 particles were spread
+When resampling 400 out of the 2000 particles were spread
 randomly in the map, and were given a total probability of 1\%.
 
 
 \paragraph{The state transition issue:}
-Unfortunately to apply a correct state-transition function we would need to know the velocity
-of the robot, however that variable is not tracked in the current version of the particle filter,
-and therefore the adopted solution used a random movement proportional to the runner's velocity
+Unfortunately, to apply a correct state transition function, we would need to know the velocity
+of the robot. However, that variable is not tracked in the current version of the particle filter,
+and therefore the adopted solution uses a random movement proportional to the runner's velocity.
 
 
 
@@ -451,36 +453,36 @@ and therefore the adopted solution used a random movement proportional to the ru
 % Describes the software, hardware, or simulation environment used to test the solution.
 \section{Implementation Details}
 
-The simulation was implemented in python, with a frontend for visualization built with
-pygame community edition and matplotlib.
-All agent's controller were implemented in a separate thread for better performances,
-and messages queue where used for message exchange.
-The python version used was 1.14 that thanks to the removal of the GIL
-allowed better multithreaded execution. All test were run on a ryzen 5 5600 desktop CPU.
+The simulation was implemented in Python, with a frontend for visualization built with
+PyGame Community Edition and Matplotlib.
+All agents' controllers were implemented in a separate thread for better performance,
+and message queues were used for message exchange.
+The Python version used was 3.14, which thanks to the removal of the GIL
+allowed better multithreaded execution. All tests were run on a Ryzen 5 5600 desktop CPU.
 
 % --- SECTION V: RESULTS ---
 % Presents the data, charts, and evidence supporting the effectiveness of the solution.
 \section{Results}
 
-\subsection{Proposed methods performances}
+\subsection{Proposed Methods Performance}
 
 In this section we will compare the results obtained by the three proposed methodologies
-using 3 key metrics:
+using three key metrics:
 \begin{itemize}
-    \item \textbf{TTC (or Time To Catch):} this is the total time (in simulation steps)
-    that the chasers took to catch the runner
-    \item \textbf{TTFC (or Time To First Contact):} this is the total (in simulations steps)
-    that past from the beginning from when the runner entered the detection radius of a chaser
-    \item \textbf{TChase:} defined as $TTC - TTFC$
+    \item \textbf{TTC (or Time To Catch):} This is the total time (in simulation steps)
+    that the chasers took to catch the runner.
+    \item \textbf{TTFC (or Time To First Contact):} This is the time (in simulation steps)
+    from the beginning to when the runner entered the detection radius of a chaser.
+    \item \textbf{TChase:} defined as $TTC - TTFC$.
 \end{itemize}
 
-The figure \ref{fig:comparison} show the three metrics across all three approaches, with the error bar
+The figure \ref{fig:comparison} shows the three metrics across all three approaches, with the error bars
 representing the standard deviation of the scores.
 
 The standard deviation is high across all samples due to the fact that the time for a catch
 is highly dependent on the initial position of the robot.
-To mitigate this issue 100 tests were made for each strategy, and the seed was set to the same
-value in the i-th test of every strategy.
+To mitigate this issue, 100 tests were made for each strategy, and the seed was set to the same
+value in the $i$-th test of every strategy.
 
 
 
@@ -493,12 +495,12 @@ value in the i-th test of every strategy.
 \end{figure}
 
 
-The table below show the t-test's P-value of the comparison between 
+The table below shows the t-test's P-value of the comparison between 
 the various metrics and solutions.
 
-We can easily see from the table that, even tho the variance is pretty high
+We can easily see from the table that, even though the variance is pretty high,
 thanks to the high number of samples we can say with high confidence that all
-the difference shown are statistically significant.
+the differences shown are statistically significant.
 \begin{table}[ht]
 \centering
 \resizebox{0.49\textwidth}{!}{
@@ -513,47 +515,47 @@ the difference shown are statistically significant.
 }
 \end{table}
 
-\paragraph{Expleination of the observed results:}
+\paragraph{Explanation of the observed results:}
 Two interesting trends are clear when looking at figure \ref{fig:comparison}.
-The first one is that the gaussian controller performs really poorly, even worst than the
-simple baseline one; This can be explained with three key reasons:
+The first one is that the gaussian controller performs really poorly, even worse than the
+simple baseline one. This can be explained with three key reasons:
 
 \begin{itemize}
-    \item The gaussian is not really suited for the search process, it can't provide a reasonable approximation
-    on where the runner is making the search ineffective. In particular if the variance is too low the search process
-    is focussed too much on the center of the map, and if the variance is too high most of the probability density
+    \item The gaussian is not really suited for the search process. It cannot provide a reasonable approximation
+    of where the runner is, making the search ineffective. In particular, if the variance is too low, the search process
+    is focused too much on the center of the map, and if the variance is too high, most of the probability density
     is outside the borders of the map.
-    \item As discussed in section \ref{sec:gaussian_neg_measures} encoding the information associated with a negative measure
-    in a gaussian is hard, this results in this controller having less information than the particle filter one,
-    and it also made it more susceptible to false positive measures. (given than, once a false positive measure occurs, the
-    associated information can't be undone by a subsequent negative measure)
-    \item The fact that we don't keep the direction in the state of the system make the tracking process slower (as at every
-    iteration the gaussian has simply is variance increase, and then is conditioned based on the measures).
-    This make it so that the center of the gaussian is always a bit behind the robot's position, and this causes the
-    chasing process take a bit longer.
+    \item As discussed in section \ref{sec:gaussian_neg_measures}, encoding the information associated with a negative measure
+    in a gaussian is hard. This results in this controller having less information than the particle filter one,
+    and it also made it more susceptible to false positive measures. (Once a false positive measure occurs, the
+    associated information cannot be undone by a subsequent negative measure.)
+    \item The fact that we do not keep the direction in the state of the system makes the tracking process less effective. At every
+    iteration, the gaussian's variance simply increases, and then it is conditioned based on the measures.
+    This makes it so that the center of the gaussian is always a bit behind the robot's position, and this causes the
+    chasing process to take a bit longer.
 \end{itemize}
 
-Observing the comparison between the ``Baseline'' and the ``PF'' solution reveal some more interesting threads:
-the difference in TChase is really small at about 12\% while the difference in TTFC is much higher at approximately
-107\%; This suggest that the main benefits of using an informed search strategy is not really the tracking of the target once
-it has been spotted, but it has more to do with the ability of searching the target in an efficient way even before
-the target has been spotted once.
+Observing the comparison between the ``Baseline'' and the ``PF'' solution reveals some more interesting insights:
+the difference in TChase is really small at about 12\%, while the difference in TTFC is much higher at approximately
+107\%. This suggests that the main benefits of using an informed search strategy is not really the tracking of the target once
+it has been spotted, but rather has more to do with the ability to search for the target in an efficient way even before
+the target has been spotted.
 
-This effect can be seen in figure \ref{fig:pf_map} where the chasers have an somewhat accurate 
-guess on the position of the runner, even if none of them has yet being able to see it.
+This effect can be seen in figure \ref{fig:pf_map} where the chasers have a somewhat accurate 
+guess on the position of the runner, even if none of them has yet been able to see it.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.4\textwidth]{./images/pf_map.png}
-    \caption{Chasers guess of the runner's position (left image show the map with runners in red an chaser in green, right image 
+    \caption{Chasers guess of the runner's position (left image show the map with chasers in red an runner in green, right image 
     show a 2D histogram of the position of the particles)}
     \label{fig:pf_map}
 \end{figure}
 
 
-\subsection{Computational costs}
-The figure XXX show the computational cost of the proposed methods.
-There is nothing surprising here, the particle filter is as expected by far the most
+\subsection{Computational Costs}
+Figure \ref{fig:comp_costs} shows the computational cost of the proposed methods.
+There is nothing surprising here. The particle filter is, as expected, by far the most
 expensive.
 
 
@@ -564,11 +566,11 @@ expensive.
     \label{fig:comp_costs}
 \end{figure}
 
-\subsection{Effect of various variables}
+\subsection{Effect of Various Variables}
 
 In this section we will explore the effects that various variables have on the
 time to catch metric. The idea is to understand what is the most effective way
-to improve the performances if we for example have a limited budget for sensors.
+to improve the performance if we have, for example, a limited budget for sensors.
 
 The variables that were tested are:
 \begin{itemize}
@@ -578,13 +580,13 @@ The variables that were tested are:
     \item False negative rate
 \end{itemize}
 
-I should mentioned that the run to run variance on this is relatively high
+I should mention that the run-to-run variance on this is relatively high
 at about 60 points on average.
-The results have being calculated with the same 100 fix-seed tests
-used for the previous benchmarks, however fixing the seed only
-makes the initial condition the same, and doesn't have influence on how the
+The results were calculated with the same 100 fixed-seed tests
+used for the previous benchmarks. However, fixing the seed only
+makes the initial condition the same and does not have an influence on how the
 system evolves.
-Unfortunately increasing sample size and reducing the variance even further
+Unfortunately, increasing the sample size and reducing the variance even further
 was complicated, as these tests already required 6+ hours of compute time.
 
 \begin{figure}[ht]
@@ -598,15 +600,14 @@ was complicated, as these tests already required 6+ hours of compute time.
 \end{figure}
 
 
-As we can see in figure \ref{fig:vars} the most important variable
-seem to be the detection radius, with all other variable having a smaller
+As we can see in figure \ref{fig:vars}, the most important variable
+seems to be the detection radius, with all other variables having a smaller
 (although still measurable) impact.
 
-We can also see how some time a variable's effect seem to have a non monotonic effect on the 
-time to catch (such as in the case of the false negative rate); However as we sed earlier
-this test have some high variance associated to them, so the correct way to interpret
-this result is that the effect at a certain point is quite small, and have a
-impact that is comparably small
+We can also see how sometimes a variable's effect seems to have a non-monotonic effect on the 
+time to catch. However, as we said earlier,
+these tests have some high variance associated with them, so the correct way to interpret
+this result is that the effect has an impact that is comparably small.
 
 
 
@@ -614,27 +615,26 @@ impact that is comparably small
 % --- SECTION VI: CONCLUSIONS ---
 % Summarizes findings, discusses limitations, and suggests future work.
 \section{Conclusions}
-In this report we discussed three different approaches for controlling chasers
-in a runner-chasers scenario.
+In this report, we discussed three different approaches for controlling chasers
+in a runner-chaser scenario.
 
 The results have shown that the biggest gains can be had in the first part of
-an episode (the search) rather than the second part (the chase), this
-resulted in methods that can effectively represent complex PDF (namely the particle
-filter) greatly outperforming other methods.
+an episode (the search) rather than the second part (the chase). This resulted in
+methods that can effectively represent complex PDFs (namely, the particle filter)
+greatly outperforming other methods.
 
-The work done still has some limitations, in particular
-the way the probability of false positive has being approximated could be
+The work done still has some limitations. In particular,
+the way the probability of false positives has been approximated could be
 improved if we were to track the position of fake runners as well.
 
-Furthermore adding the runner's velocity to the state (rather than just tracking
-the position) could further improve the performances of the algorithms
+Furthermore, adding the runner's velocity to the state (rather than just tracking
+the position) could further improve the performance of the algorithms.
 
-These proposed improvements are a grate opportunity for potential future works
-related to this project, however the main challenge still remain the computational
-cost of techniques such as the particle filter, and this challenges would only
-increase if we started tracking fake runners, or adding components to the state.
+These proposed improvements are a great opportunity for potential future work; However, the main challenge still remains the computational
+cost of techniques such as the particle filter, and this challenge would only
+increase if we started tracking fake runners or adding components to the state.
 
-Chaser's coordination is also something that was not threated in this report,
+Chaser coordination is also something that was not treated in this report,
 but could also improve results.
 
 
